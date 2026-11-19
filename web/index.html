@@ -20,9 +20,8 @@
   <main class="shell">
     <section class="hero">
       <div class="hero-content">
-        <div class="eyebrow"><span></span> RELEASE INTELLIGENCE</div>
         <h1>Deployment<br>risk assessment<span>.</span></h1>
-        <p>Review what changed, where test evidence is weak, and what could go wrong before the release moves to production.</p>
+        <p>Review code changes, test coverage, and security evidence before production.</p>
       </div>
       <div class="hero-art" aria-hidden="true">
         <div class="scope"><b></b><b></b><b></b><i></i><em></em></div>
@@ -31,8 +30,8 @@
     </section>
     <section class="workspace" aria-label="Release assessment workspace">
       <aside class="panel evidence">
-        <div class="panel-title"><h2>Release evidence</h2><span class="mono" id="evidence-count">0 / 3</span></div>
-        <button class="example" id="load-demo" type="button"><span aria-hidden="true">↗</span> Load checkout demo</button>
+        <div class="panel-title"><h2>Release evidence</h2><span class="mono" id="evidence-count">0 / 7</span></div>
+        <button class="example" id="load-demo" type="button"><span aria-hidden="true">▷</span> Load checkout demo</button>
         <form id="review-form">
           <label class="upload" data-artifact="patch">
             <span class="file-icon" aria-hidden="true">⌘</span>
@@ -52,6 +51,33 @@
             <span class="add" aria-hidden="true">+</span>
             <input type="file" accept=".csv" aria-label="Upload incident history">
           </label>
+          <label class="upload" data-artifact="network_flows">
+            <span class="file-icon" aria-hidden="true">↔</span>
+            <span><strong>Network flow metadata</strong><small>Sanitized CSV · optional</small></span>
+            <span class="add" aria-hidden="true">+</span>
+            <input type="file" accept=".csv" aria-label="Upload network flow metadata">
+          </label>
+          <label class="upload" data-artifact="npm_audit">
+            <span class="file-icon" aria-hidden="true">{ }</span>
+            <span><strong>npm audit report</strong><small>npm audit --json · optional</small></span>
+            <span class="add" aria-hidden="true">+</span>
+            <input type="file" accept=".json" aria-label="Upload npm audit report">
+          </label>
+          <details class="lock-inputs">
+            <summary>Compare npm lockfiles</summary>
+            <label class="upload" data-artifact="baseline_lock">
+              <span class="file-icon" aria-hidden="true">{ }</span>
+              <span><strong>Baseline lockfile</strong><small>package-lock.json</small></span>
+              <span class="add" aria-hidden="true">+</span>
+              <input type="file" accept=".json" aria-label="Upload baseline lockfile">
+            </label>
+            <label class="upload" data-artifact="release_lock">
+              <span class="file-icon" aria-hidden="true">{ }</span>
+              <span><strong>Release lockfile</strong><small>package-lock.json</small></span>
+              <span class="add" aria-hidden="true">+</span>
+              <input type="file" accept=".json" aria-label="Upload release lockfile">
+            </label>
+          </details>
           <p id="form-error" class="error" role="alert" hidden></p>
           <button class="primary" id="run" type="submit">Run assessment <span aria-hidden="true">→</span></button>
           <button class="clear" id="clear" type="button" hidden>Clear inputs</button>

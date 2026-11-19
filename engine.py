@@ -6,6 +6,9 @@ import re
 import shlex
 from pathlib import PurePosixPath
 
+from security_evidence import review_flows, review_npm_audit
+from dependency_evidence import review_dependencies
+
 LIMIT = 750_000
 SECRET = re.compile(r"""(?i)\b(?:api[_-]?key|access[_-]?token|client[_-]?secret|password)\s*[:=]\s*["']?([A-Za-z0-9_./+!=@-]{8,})|-----BEGIN [A-Z ]*PRIVATE KEY-----""")
 EMAIL = re.compile(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}")
@@ -46,6 +49,8 @@ def parse_patch(patch):
 
     for line in patch.splitlines():
         if line.startswith("diff --git "):
+            if old_remaining or new_remaining:
+                raise ValueError("A patch hunk ended before all declared lines were read.")
             finish_file()
             path = git_path = previous = None
             old_remaining = new_remaining = 0
@@ -187,10 +192,13 @@ RULES = [
 ]
 
 
-def assess(patch, coverage="", incidents=""):
+def assess(patch, coverage="", incidents="", network_flows="", npm_audit="", baseline_lock="", release_lock=""):
     files = parse_patch(patch)
     index = coverage_index(coverage)
     inventory = incident_index(incidents)
+    network_summary, network_findings = review_flows(network_flows)
+    npm_summary, audit_findings = review_npm_audit(npm_audit)
+    lock_summary, privacy_routes, dependency_findings = review_dependencies(baseline_lock, release_lock, files, safe_label)
     findings, changed, matched = [], [], {}
     points = dict.fromkeys(CAPS, 0)
     rules_seen = set()
@@ -240,6 +248,13 @@ def assess(patch, coverage="", incidents=""):
                 blockers.add(title + " requires review.")
             findings.append({"area": area, "severity": severity, "title": title, "file": label, "line": matching, "action": action})
 
+    supplemental_findings = network_findings + audit_findings + dependency_findings
+    for finding in supplemental_findings:
+        points[finding["area"]] += {"critical": 20, "high": 10, "medium": 5, "low": 1}[finding["severity"]]
+        if finding["severity"] == "critical":
+            blockers.add(finding["title"] + " requires review.")
+    findings.extend(supplemental_findings)
+
     observed = covered_total + missed_total
     percent = round(100 * covered_total / observed) if observed else None
     if missed_total:
@@ -248,12 +263,13 @@ def assess(patch, coverage="", incidents=""):
         points["Test evidence"] += 8
     if len(files) >= 8:
         points["Change impact"] += 5
-    if len(findings) > 600:
-        findings = findings[:600]
+    priority = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+    findings.sort(key=lambda item: priority[item["severity"]])
+    finding_count = len(findings)
     dimensions = [{"label": name, "points": min(points[name], cap), "max": cap} for name, cap in CAPS.items()]
     score = sum(row["points"] for row in dimensions)
     decision = "HOLD" if blockers or score >= 45 else "CANARY" if score >= 15 else "GO"
-    if decision == "GO" and unknown_total:
+    if decision == "GO" and (unknown_total or any(item["severity"] in {"high", "critical"} for item in findings)):
         decision = "CANARY"
     advisories = {
         "HOLD": "Pause promotion until a release owner resolves or explicitly accepts the evidence below.",
@@ -273,4 +289,6 @@ def assess(patch, coverage="", incidents=""):
     return {"decision": decision, "score": score, "advisory": advisories[decision], "dimensions": dimensions,
             "files": changed, "coverage": {"percent": percent, "covered": covered_total, "missed": missed_total, "unknown": unknown_total, "supplied": bool(coverage.strip())},
             "incidents": list(matched.values()), "incidents_supplied": bool(incidents.strip()),
-            "findings": findings, "blockers": sorted(blockers), "checklist": checklist}
+            "network": network_summary, "npm_audit": npm_summary, "finding_count": finding_count,
+            "dependency_changes": lock_summary, "privacy_routes": privacy_routes,
+            "findings": findings[:600], "blockers": sorted(blockers), "checklist": checklist}

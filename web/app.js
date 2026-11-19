@@ -33,7 +33,7 @@ function updateInputs() {
     tile.querySelector("small").textContent = artifacts[key]?.name || defaults[key];
     tile.querySelector(".add").textContent = artifacts[key] ? "✓" : "+";
   }
-  find("#evidence-count").textContent = Object.keys(artifacts).length + " / 3";
+  find("#evidence-count").textContent = Object.keys(artifacts).length + " / " + tiles.length;
   clear.hidden = !Object.keys(artifacts).length;
 }
 
@@ -167,7 +167,9 @@ function renderReport(data) {
   const views = [
     ["Risk summary", () => renderOverview(data, body)],
     ["Changed files", () => renderFiles(data, body)],
-    ["Findings (" + data.findings.length + ")", () => renderFindings(data, body)],
+    ["Security evidence", () => renderSecurity(data, body)],
+    ["Privacy routes", () => renderPrivacy(data, body)],
+    ["Findings (" + (data.finding_count ?? data.findings.length) + ")", () => renderFindings(data, body)],
     ["Rollback", () => renderRollback(data, body)],
   ];
   const buttons = views.map(([label], index) => {
@@ -239,8 +241,66 @@ function renderFiles(data, body) {
 function renderFindings(data, body) {
   body.append(element("h3", "Findings and remediation"));
   if (!data.findings.length) body.append(element("p", "No findings matched the configured change, privacy and security rules."));
+  if (data.finding_count > data.findings.length) {
+    body.append(element("p", "Showing the " + data.findings.length + " highest-priority findings."));
+  }
   for (const finding of data.findings) {
-    body.append(evidenceRow(finding.title, finding.area + " · " + finding.file + (finding.line ? ":" + finding.line : ""), finding.action, finding.severity));
+    const meta = finding.area + " · " + finding.file + (finding.line ? ":" + finding.line : "");
+    body.append(evidenceRow(finding.title, finding.detail ? meta + " · " + finding.detail : meta, finding.action, finding.severity));
+  }
+}
+
+function renderSecurity(data, body) {
+  const sections = element("div", undefined, "security-sections");
+  const network = element("section", undefined, "security-section");
+  const dependencies = element("section", undefined, "security-section");
+  network.append(element("h3", "Network exposure"));
+  if (data.network) {
+    const { reviewed, cleartext, protected: protectedCount, unknown_transport, flagged } = data.network;
+    network.append(
+      element("strong", flagged + " flagged of " + reviewed + " classified flows", "evidence-result"),
+      element("p", cleartext + " cleartext · " + protectedCount + " protected · " + unknown_transport + " unverified")
+    );
+  } else {
+    network.append(element("p", "No network flow metadata supplied."));
+  }
+  dependencies.append(element("h3", "Dependency vulnerabilities"));
+  sections.append(network, dependencies);
+  body.append(sections);
+  if (!data.npm_audit) {
+    dependencies.append(element("p", "No npm audit report supplied."));
+  } else {
+    dependencies.append(
+      element("strong", data.npm_audit.transitive + " transitive · " + data.npm_audit.direct + " direct", "evidence-result"),
+      element("p", "Packages flagged in the imported npm audit report.")
+    );
+    for (const finding of data.findings.filter((item) => item.title.startsWith("npm audit flags"))) {
+      body.append(evidenceRow(finding.file, finding.detail, finding.action, finding.severity));
+    }
+  }
+  body.append(element("h3", "Lockfile changes"));
+  if (!data.dependency_changes) {
+    body.append(element("p", "No lockfile comparison supplied."));
+    return;
+  }
+  const locks = data.dependency_changes;
+  body.append(element("p", locks.transitive + " transitive · " + locks.direct + " direct changes"));
+  for (const item of locks.changes) {
+    body.append(evidenceRow(item.name + (item.version ? " @" + item.version : ""), item.change + " · " + item.chain.join(" → "),
+      item.source + " · Integrity metadata " + (item.integrity_present ? "present" : "absent"), item.kind));
+  }
+}
+
+function renderPrivacy(data, body) {
+  body.append(element("h3", "Potential personal-data routes"));
+  if (!data.privacy_routes?.length) {
+    body.append(element("p", "No candidate routes found in the supplied source and lockfiles."));
+    return;
+  }
+  body.append(element("p", "These candidates come from changed source lines and the npm dependency graph. Confirm the payload and destination at runtime."));
+  for (const route of data.privacy_routes) {
+    body.append(evidenceRow(route.chain.join(" → "), route.file + ":" + route.line + " · " + route.sink,
+      "Review data minimization and validate the changed package before release.", "Candidate"));
   }
 }
 

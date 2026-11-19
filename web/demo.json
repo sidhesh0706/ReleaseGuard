@@ -1,7 +1,7 @@
 {
   "patch": {
     "name": "checkout-release.patch",
-    "text": "diff --git a/services/checkout/handler.py b/services/checkout/handler.py\n--- a/services/checkout/handler.py\n+++ b/services/checkout/handler.py\n@@ -19,2 +19,6 @@\n def payment_status(customer, gateway, order):\n-    return gateway.fetch(order)\n+    logger.info(\"Checkout status for %s\", customer.email)\n+    status = gateway.fetch(order, verify=False)\n+    if status is None:\n+        return \"pending\"\n+    return status\ndiff --git a/db/migrations/024_checkout.sql b/db/migrations/024_checkout.sql\n--- /dev/null\n+++ b/db/migrations/024_checkout.sql\n@@ -0,0 +1,2 @@\n+ALTER TABLE checkout_sessions DROP COLUMN processor_reference;\n+ALTER TABLE checkout_sessions ADD COLUMN processor_status TEXT;\ndiff --git a/pyproject.toml b/pyproject.toml\n--- a/pyproject.toml\n+++ b/pyproject.toml\n@@ -5 +5 @@\n-dependencies = [\"gateway-sdk==2.4.0\"]\n+dependencies = [\"gateway-sdk==2.5.0\"]\n"
+    "text": "diff --git a/services/checkout/handler.py b/services/checkout/handler.py\n--- a/services/checkout/handler.py\n+++ b/services/checkout/handler.py\n@@ -19,2 +19,6 @@\n def payment_status(customer, gateway, order):\n-    return gateway.fetch(order)\n+    logger.info(\"Checkout status for %s\", customer.email)\n+    status = gateway.fetch(order, verify=False)\n+    if status is None:\n+        return \"pending\"\n+    return status\ndiff --git a/db/migrations/024_checkout.sql b/db/migrations/024_checkout.sql\n--- /dev/null\n+++ b/db/migrations/024_checkout.sql\n@@ -0,0 +1,2 @@\n+ALTER TABLE checkout_sessions DROP COLUMN processor_reference;\n+ALTER TABLE checkout_sessions ADD COLUMN processor_status TEXT;\ndiff --git a/pyproject.toml b/pyproject.toml\n--- a/pyproject.toml\n+++ b/pyproject.toml\n@@ -5 +5 @@\n-dependencies = [\"gateway-sdk==2.4.0\"]\n+dependencies = [\"gateway-sdk==2.5.0\"]\ndiff --git a/src/checkout.js b/src/checkout.js\nnew file mode 100644\n--- /dev/null\n+++ b/src/checkout.js\n@@ -0,0 +1,4 @@\n+import telemetry from \"@demo/telemetry\";\n+const payload = { email: customer.email };\n+telemetry.track(payload);\n+const reviewComplete = true;\n"
   },
   "coverage": {
     "name": "checkout-coverage.info",
@@ -10,5 +10,21 @@
   "incidents": {
     "name": "past-incidents.csv",
     "text": "id,module,severity\nINC-104,services/checkout,high\nINC-127,db/migrations,medium\nINC-408,services/search,low\n"
+  },
+  "network_flows": {
+    "name": "checkout-flow-metadata.csv",
+    "text": "transport,destination_scope,data_class\nhttp,external,personal\nhttps,external,credentials\nunknown,internal,personal\nhttps,internal,public\n"
+  },
+  "npm_audit": {
+    "name": "synthetic-npm-audit.json",
+    "text": "{\"auditReportVersion\":2,\"vulnerabilities\":{\"checkout-demo-transitive\":{\"name\":\"checkout-demo-transitive\",\"severity\":\"high\",\"isDirect\":false}}}"
+  },
+  "baseline_lock": {
+    "name": "baseline-package-lock.json",
+    "text": "{\"lockfileVersion\": 3, \"packages\": {\"\": {\"dependencies\": {\"@demo/telemetry\": \"1.0.0\"}}, \"node_modules/@demo/telemetry\": {\"version\": \"1.0.0\", \"dependencies\": {\"demo-replay\": \"*\"}}, \"node_modules/demo-replay\": {\"version\": \"1.0.0\", \"resolved\": \"https://registry.example.invalid/replay\", \"integrity\": \"sha512-fixture\"}}}"
+  },
+  "release_lock": {
+    "name": "release-package-lock.json",
+    "text": "{\"lockfileVersion\": 3, \"packages\": {\"\": {\"dependencies\": {\"@demo/telemetry\": \"1.0.0\"}}, \"node_modules/@demo/telemetry\": {\"version\": \"1.0.0\", \"dependencies\": {\"demo-replay\": \"*\"}}, \"node_modules/demo-replay\": {\"version\": \"1.0.1\", \"resolved\": \"https://registry.example.invalid/replay\", \"integrity\": \"sha512-fixture\"}}}"
   }
 }
