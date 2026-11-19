@@ -1,50 +1,109 @@
 # ReleaseGuard
 
-ReleaseGuard is a local deployment review workspace built by Team LLmborghini for Agent Forge. Give it a code diff and, when available, line coverage and incident history. It returns a GO, CANARY, or HOLD recommendation with the evidence behind the score and a rollback checklist.
+**Evidence-based deployment review for release owners**
 
-## Run locally
+ReleaseGuard brings code changes, test coverage, incident history, and security evidence into a single release review. It returns a **GO**, **CANARY**, or **HOLD** recommendation with a risk breakdown, the evidence behind each finding, and a rollback checklist.
 
-Use Python 3.10 or later. The app has no third-party Python dependencies.
+Built by **Team LLmborghini** for **Agent Forge**.
+
+## Quick start
+
+Requires Python 3.10 or newer. ReleaseGuard uses the Python standard library.
 
 ```sh
 python server.py
 ```
 
-Open [http://127.0.0.1:8765](http://127.0.0.1:8765) and select **Load checkout demo**, then **Run assessment**. The synthetic release returns **HOLD**. Browse **Changed files**, **Findings**, and **Rollback**, then select **Export report** for the JSON advisory.
+Open [http://127.0.0.1:8765](http://127.0.0.1:8765). In PyCharm, open the project folder, select a Python interpreter, and run the **ReleaseGuard** configuration or `server.py`.
 
-### PyCharm
+## Demo walkthrough
 
-Open the root `ReleaseGuard` folder using **File → Open**. Select the existing interpreter at `.venv/Scripts/python.exe` on Windows or `.venv/bin/python` on macOS and Linux. If you cloned the project elsewhere, create the virtual environment first with `python -m venv .venv`. Select **ReleaseGuard** in the run configuration dropdown and click **Run**. You can also right-click `server.py` and select **Run 'server'**.
-
-## Inputs and decisions
-
-| Input | Format | How it is used |
+| Scenario | How to start | Expected decision |
 | --- | --- | --- |
-| Code diff | Unified diff or Git patch | Identifies changed paths and added lines, classifies changes, and scans for selected security and privacy signals |
-| Test coverage | LCOV or coverage.py JSON | Matches covered and missed lines against new-file line numbers in the diff |
-| Incident history | CSV with `id,module,severity` | Matches incident module paths to changed files |
-| Network flow metadata | CSV with `transport,destination_scope,data_class` | Flags cleartext or unverified transport on flows classified as personal data or credentials |
-| npm audit report | `npm audit --json` report version 2 | Imports scanner findings and distinguishes direct and transitive packages |
-| npm lockfile comparison | Baseline and release `package-lock.json` v2/v3 | Traces added or updated packages reachable from root dependencies and reviews source and integrity metadata |
+| Checkout release | Select **Load checkout demo**, then **Run assessment**. | **HOLD · 88/100**. A destructive migration requires a verified restore plan. |
+| Checkout timeout change | Select **Load moderate-risk demo**, then **Run assessment**. | **CANARY · 24/100**. The update touches the checkout path, leaves one added line uncovered, and matches a past incident. |
+| Payment retry | Select **Load payment retry demo**, then **Run assessment**. | **CANARY · 19/100**. Coverage reaches eight of nine added executable lines, and incident INC-204 matches the changed module. |
+| Receipt label | Select **Load low-risk demo**, then **Run assessment**. | **GO · 0/100**. The receipt copy change is fully covered and triggers no release gate. |
 
-Each input can be up to 750 KB. Use repository-relative paths in coverage reports from the same revision as the diff. Reported coverage uses the added source lines with coverage evidence as its denominator. Added source lines without matching evidence are counted separately.
+Start with the checkout release. Follow the live workflow and open **Security evidence** to see two flagged network flows and use the 3D dependency path to locate `demo-replay`, the transitive package flagged in the sample npm audit. Select **Flat view** for a 2D view. Open **Privacy routes** to trace the candidate from `src/checkout.js` through `@demo/telemetry` to `demo-replay`. In **Findings**, filter by severity and review each finding's evidence, location, and next step.
 
-### Defensive evidence
+Use **Try another scenario** to switch directly between assessments. The payment retry case uses a supplied synthetic patch, coverage.py report, and incident CSV. Open **Rollback** for the checklist or select **Export report** for a JSON record. All bundled scenarios use synthetic evidence.
 
-Provide only classified network flow metadata from your own monitoring workflow. Supported transports are `http`, `ftp`, `telnet`, `https`, `tls`, `sftp`, `ssh`, and `unknown`. Destination scopes are `internal`, `external`, and `unknown`. Data classes are `public`, `personal`, `credentials`, and `unknown`. ReleaseGuard evaluates the declared classifications and exports only category labels and CSV row numbers.
+## Evidence and analysis
 
-Import an existing npm audit report for the release revision. Use **Security evidence** to see the direct and transitive package totals, then **Findings** for remediation. The bundled demo uses synthetic flow metadata and a synthetic npm advisory. ReleaseGuard analyzes those inputs offline. If you generate an audit report using npm, npm sends dependency information to the configured registry.
+| Input | Format | Analysis |
+| --- | --- | --- |
+| Code changes | Unified diff or Git patch | Identifies changed paths, destructive migrations, and selected security and privacy patterns. The patch is required. |
+| Test coverage | LCOV or coverage.py JSON | Matches known coverage to added lines. Lines without matching coverage evidence appear separately. |
+| Incident history | CSV with `id,module,severity` | Matches past incidents to changed modules. |
+| Network flow metadata | CSV with `transport,destination_scope,data_class` | Flags classified personal data or credentials on cleartext or unverified connections. |
+| npm audit report | `npm audit --json`, report version 2 | Imports vulnerability findings and identifies whether flagged packages are direct or transitive. |
+| npm lockfiles | Baseline and proposed `package-lock.json`, versions 2 or 3 | Traces added or changed packages reachable from root dependencies and reviews source and integrity metadata. |
 
-Supply both npm lockfiles to enable **Privacy routes**. Candidates link added JavaScript or TypeScript imports and sensitive field references to a supported sink and a changed transitive dependency. The analysis handles default, namespace and simple CommonJS imports with direct field references or simple assignments in contiguous added lines. Validate inferred routes at runtime. Lockfile export includes package names, dependency paths, version labels, and source classifications. It omits resolved URLs and integrity hashes. The comparison covers root-reachable installed packages and reports additions and updates. npm workspaces, unresolved packages, and removed packages are outside this comparison.
+Each evidence file can be up to 750 KB. Use repository-relative paths and coverage data for the proposed release revision.
 
-The score combines change impact (30 points), test evidence (25), related incidents (15), security (20), and privacy (10). A release gate or score of at least 45 yields HOLD. A score of 15–44, missing evidence on added source lines, or a high-severity finding yields CANARY when no HOLD condition applies. Other assessments yield GO. The release owner retains the deployment decision.
+### Security and privacy boundaries
 
-The security pass flags selected patterns such as potential credentials, disabled TLS verification, and wildcard CORS. The privacy pass flags selected personal data fields and logging patterns. These are static heuristics. Review findings in context and use dedicated scanners for broader coverage.
+- **Code checks.** Static rules flag patterns such as possible credentials, disabled TLS verification, wildcard CORS, and potentially sensitive fields or logging.
+- **Network evidence.** Flow analysis uses supplied, classified metadata. Use an export from your own monitoring workflow. The application does not capture packets or inspect payloads.
+- **Dependency routes.** The privacy analysis links supported JavaScript or TypeScript import and field patterns to candidate routes through changed npm dependencies. Confirm the payload and destination at runtime. Lockfile comparison covers root-reachable additions and updates.
+- **Local processing.** The default server binds to loopback. Application analysis runs in memory and makes no external calls. Exported reports retain evidence locations and omit raw source lines, matched values, resolved registry URLs, and integrity hashes.
 
-The default server listens on loopback, processes uploads in memory, and makes no external calls. Reports include file paths and line numbers plus redacted labels where applicable. They omit raw source lines and matched values.
+### Release decisions
+
+The score combines change impact (30 points), test evidence (25), related incidents (15), security (20), and privacy (10).
+
+| Recommendation | Assessment rule |
+| --- | --- |
+| **HOLD** | A release gate is active, or the score is at least 45. |
+| **CANARY** | With no HOLD condition, the score is 15–44, added lines lack coverage evidence, or a high-severity finding is present. |
+| **GO** | The evidence triggers neither HOLD nor CANARY. |
+
+These rules support a release review. The release owner makes the deployment decision.
 
 ## API
 
-`GET /api/health` returns service status. `POST /api/assess` accepts JSON with a required `patch` string, optional `coverage`, `incidents`, `network_flows`, and `npm_audit` strings, and an optional pair of `baseline_lock` and `release_lock` strings. The built-in example bundle is available at `GET /demo.json`.
+| Endpoint | Response |
+| --- | --- |
+| `GET /api/health` | Service status |
+| `GET /demo.json` | Checkout fixture with `{ "name": "...", "text": "..." }` objects |
+| `GET /demo-moderate.json` | Moderate-risk fixture in the same format |
+| `GET /demo-payments.json` | Payment retry fixture in the same format |
+| `GET /demo-go.json` | Receipt label fixture in the same format |
+| `POST /api/assess` | Final assessment as JSON |
+| `POST /api/assess/stream` | Newline-delimited stage events followed by a `result` or `error` event |
 
-`server.py` serves the HTTP API and frontend assets. `engine.py` implements parsing, evidence matching, scoring, and advisory generation. `security_evidence.py` reviews network and npm audit evidence. `web/` contains the browser interface and the synthetic demo.
+Both POST endpoints accept **plain text strings** as evidence values. Send the `text` from each demo object and omit its `name`. `patch` is required. Optional keys are `coverage`, `incidents`, `network_flows`, and `npm_audit`. Supply `baseline_lock` and `release_lock` together for a lockfile comparison.
+
+The following Python example fetches the moderate-risk fixture, converts it to the request format, and prints the verdict. Run it while the local server is running.
+
+```python
+import json
+from urllib.request import Request, urlopen
+
+base_url = "http://127.0.0.1:8765"
+with urlopen(f"{base_url}/demo-moderate.json") as response:
+    fixture = json.load(response)
+
+evidence = {key: artifact["text"] for key, artifact in fixture.items()}
+request = Request(
+    f"{base_url}/api/assess",
+    data=json.dumps(evidence).encode("utf-8"),
+    headers={"Content-Type": "application/json"},
+    method="POST",
+)
+with urlopen(request) as response:
+    report = json.load(response)
+
+print(report["decision"], report["score"])  # CANARY 24
+```
+
+## Tests
+
+```sh
+python -m unittest -v
+```
+
+The test suite covers all four scenario verdicts, transitive dependency tracing, malformed evidence, and export redaction.
+
+The browser UI lives in `web/`. `server.py` serves the UI and API, `engine.py` calculates the recommendation, `security_evidence.py` processes network and npm audit inputs, and `dependency_evidence.py` traces lockfile changes and candidate privacy routes.

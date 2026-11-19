@@ -1,0 +1,10 @@
+{
+  "patch": {
+    "name": "receipt-label.patch",
+    "text": "diff --git a/services/receipts/labels.py b/services/receipts/labels.py\n--- a/services/receipts/labels.py\n+++ b/services/receipts/labels.py\n@@ -9 +9 @@ def receipt_label():\n-    return \"Order receipt\"\n+    return \"Your order receipt\"\n"
+  },
+  "coverage": {
+    "name": "receipt-coverage.info",
+    "text": "TN:receipts\nSF:services/receipts/labels.py\nDA:9,5\nend_of_record\n"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "patch": {
+    "name": "checkout-timeout.patch",
+    "text": "diff --git a/services/checkout/handler.py b/services/checkout/handler.py\n--- a/services/checkout/handler.py\n+++ b/services/checkout/handler.py\n@@ -20 +20,2 @@ def payment_status(gateway, order):\n-    return gateway.fetch(order)\n+    status = gateway.fetch(order, timeout=4)\n+    return status if status is not None else \"pending\"\n"
+  },
+  "coverage": {
+    "name": "checkout-timeout-coverage.info",
+    "text": "TN:checkout\nSF:services/checkout/handler.py\nDA:20,4\nDA:21,0\nend_of_record\n"
+  },
+  "incidents": {
+    "name": "checkout-timeout-incidents.csv",
+    "text": "id,module,severity\nINC-211,services/checkout,medium\n"
+  }
+}

@@ -14,21 +14,28 @@ STATIC = {
     "/app.js": ("app.js", "text/javascript; charset=utf-8"),
     "/style.css": ("style.css", "text/css; charset=utf-8"),
     "/demo.json": ("demo.json", "application/json"),
+    "/demo-moderate.json": ("demo-moderate.json", "application/json"),
+    "/demo-payments.json": ("demo-payments.json", "application/json"),
+    "/demo-go.json": ("demo-go.json", "application/json"),
 }
 
 
 class App(BaseHTTPRequestHandler):
-    def send_data(self, status, data, type_="application/json"):
-        if isinstance(data, dict):
-            data = json.dumps(data).encode()
+    def send_headers(self, status, content_type, length=None):
         self.send_response(status)
-        self.send_header("Content-Type", type_)
-        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Content-Type", content_type)
+        if length is not None:
+            self.send_header("Content-Length", str(length))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Content-Security-Policy", "default-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'")
         self.end_headers()
+
+    def send_data(self, status, data, type_="application/json"):
+        if isinstance(data, dict):
+            data = json.dumps(data).encode()
+        self.send_headers(status, type_, len(data))
         self.wfile.write(data)
 
     def do_GET(self):
@@ -42,7 +49,7 @@ class App(BaseHTTPRequestHandler):
             self.send_data(404, {"error": "Page not found."})
 
     def do_POST(self):
-        if self.path != "/api/assess":
+        if self.path not in {"/api/assess", "/api/assess/stream"}:
             self.send_data(404, {"error": "Endpoint not found."})
             return
         if self.headers.get_content_type() != "application/json":
@@ -65,14 +72,41 @@ class App(BaseHTTPRequestHandler):
             if any(len(value.encode()) > LIMIT for value in values):
                 self.send_data(413, {"error": "Each artifact must be 750 KB or smaller."})
                 return
-            report = assess(*values)
         except (json.JSONDecodeError, UnicodeError, TypeError, RecursionError):
+            self.send_data(400, {"error": "Send a JSON object with text values for the evidence fields."})
+            return
+        if self.path == "/api/assess/stream":
+            self.stream_assessment(values)
+            return
+        try:
+            report = assess(*values)
+        except (TypeError, RecursionError, UnicodeError):
             self.send_data(400, {"error": "Send a JSON object with text values for the evidence fields."})
             return
         except ValueError as error:
             self.send_data(422, {"error": str(error)})
             return
         self.send_data(200, report)
+
+    def stream_assessment(self, values):
+        self.close_connection = True
+        self.send_headers(200, "application/x-ndjson; charset=utf-8")
+
+        def send_event(event):
+            self.wfile.write((json.dumps(event) + "\n").encode())
+            self.wfile.flush()
+
+        try:
+            try:
+                report = assess(*values, progress=send_event)
+            except (UnicodeError, TypeError, RecursionError):
+                send_event({"type": "error", "message": "The supplied evidence could not be processed."})
+            except ValueError as error:
+                send_event({"type": "error", "message": str(error)})
+            else:
+                send_event({"type": "result", "report": report})
+        except (BrokenPipeError, ConnectionResetError):
+            return
 
     def log_message(self, format, *args):
         pass

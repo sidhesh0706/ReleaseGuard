@@ -68,6 +68,31 @@ class DependencyEvidenceTests(unittest.TestCase):
         self.assertEqual(report["npm_audit"]["transitive"], 1)
         self.assertTrue(report["privacy_routes"])
 
+    def test_moderate_risk_demo_returns_canary(self):
+        fixture = Path(__file__).with_name("web") / "demo-moderate.json"
+        demo = json.loads(fixture.read_text(encoding="utf-8"))
+        report = assess(**{key: artifact["text"] for key, artifact in demo.items()})
+        self.assertEqual(report["decision"], "CANARY")
+        self.assertFalse(report["blockers"])
+
+
+    def test_payment_retry_demo_matches_coverage_and_incident(self):
+        fixture = Path(__file__).with_name("web") / "demo-payments.json"
+        demo = json.loads(fixture.read_text(encoding="utf-8"))
+        report = assess(**{key: artifact["text"] for key, artifact in demo.items()})
+        self.assertEqual(report["decision"], "CANARY")
+        self.assertEqual((report["coverage"]["covered"], report["coverage"]["missed"]), (8, 1))
+        self.assertEqual([incident["id"] for incident in report["incidents"]], ["INC-204"])
+        self.assertFalse(report["blockers"])
+
+    def test_fully_covered_receipt_label_demo_returns_go(self):
+        fixture = Path(__file__).with_name("web") / "demo-go.json"
+        demo = json.loads(fixture.read_text(encoding="utf-8"))
+        report = assess(**{key: artifact["text"] for key, artifact in demo.items()})
+        self.assertEqual(report["decision"], "GO")
+        self.assertEqual(report["coverage"]["percent"], 100)
+        self.assertFalse(report["blockers"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -192,13 +192,36 @@ RULES = [
 ]
 
 
-def assess(patch, coverage="", incidents="", network_flows="", npm_audit="", baseline_lock="", release_lock=""):
+def assess(patch, coverage="", incidents="", network_flows="", npm_audit="", baseline_lock="", release_lock="", *, progress=None):
+    def emit(stage, state, detail=""):
+        if progress is not None:
+            progress({"type": "step", "stage": stage, "state": state, "detail": detail})
+
+    emit("prepare", "running")
     files = parse_patch(patch)
     index = coverage_index(coverage)
     inventory = incident_index(incidents)
-    network_summary, network_findings = review_flows(network_flows)
+    emit("prepare", "done", f"Changed files: {len(files)}")
+
+    emit("dependencies", "running")
     npm_summary, audit_findings = review_npm_audit(npm_audit)
     lock_summary, privacy_routes, dependency_findings = review_dependencies(baseline_lock, release_lock, files, safe_label)
+    dependency_notes = []
+    if npm_summary is not None:
+        dependency_notes.append(f"Audit flags: {sum(npm_summary.values())}")
+    if lock_summary is not None:
+        dependency_notes.append(f"Transitive changes: {lock_summary['transitive']}")
+    emit("dependencies", "done" if dependency_notes else "skipped",
+         " · ".join(dependency_notes) or "No npm audit or paired lockfiles supplied")
+
+    emit("network", "running")
+    network_summary, network_findings = review_flows(network_flows)
+    if network_summary is None:
+        emit("network", "skipped", "No network flow metadata supplied")
+    else:
+        emit("network", "done", f"Flagged flows: {network_summary['flagged']} of {network_summary['reviewed']}")
+
+    emit("privacy", "running")
     findings, changed, matched = [], [], {}
     points = dict.fromkeys(CAPS, 0)
     rules_seen = set()
@@ -255,6 +278,9 @@ def assess(patch, coverage="", incidents="", network_flows="", npm_audit="", bas
             blockers.add(finding["title"] + " requires review.")
     findings.extend(supplemental_findings)
 
+    privacy_flags = sum(item["area"] == "Privacy" for item in findings)
+    emit("privacy", "done", f"Privacy findings: {privacy_flags} · Candidate routes: {len(privacy_routes)}")
+    emit("decision", "running")
     observed = covered_total + missed_total
     percent = round(100 * covered_total / observed) if observed else None
     if missed_total:
@@ -286,6 +312,7 @@ def assess(patch, coverage="", incidents="", network_flows="", npm_audit="", bas
         checklist.insert(2, "Verify backup restoration and schema compatibility before rolling back an application build.")
     if findings:
         checklist.append("Close or assign the listed findings before full promotion.")
+    emit("decision", "done", f"{decision} · {score}/100")
     return {"decision": decision, "score": score, "advisory": advisories[decision], "dimensions": dimensions,
             "files": changed, "coverage": {"percent": percent, "covered": covered_total, "missed": missed_total, "unknown": unknown_total, "supplied": bool(coverage.strip())},
             "incidents": list(matched.values()), "incidents_supplied": bool(incidents.strip()),

@@ -17,7 +17,7 @@
   },
   "npm_audit": {
     "name": "synthetic-npm-audit.json",
-    "text": "{\"auditReportVersion\":2,\"vulnerabilities\":{\"checkout-demo-transitive\":{\"name\":\"checkout-demo-transitive\",\"severity\":\"high\",\"isDirect\":false}}}"
+    "text": "{\"auditReportVersion\":2,\"vulnerabilities\":{\"demo-replay\":{\"name\":\"demo-replay\",\"severity\":\"high\",\"isDirect\":false}}}"
   },
   "baseline_lock": {
     "name": "baseline-package-lock.json",

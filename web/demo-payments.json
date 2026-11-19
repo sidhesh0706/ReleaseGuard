@@ -1,0 +1,14 @@
+{
+  "patch": {
+    "name": "change.patch",
+    "text": "diff --git a/payments/retry.py b/payments/retry.py\nnew file mode 100644\n--- /dev/null\n+++ b/payments/retry.py\n@@ -0,0 +1,11 @@\n+import time\n+\n+\n+def charge_with_retry(client, payment_id, amount):\n+    for attempt in range(3):\n+        try:\n+            return client.charge(payment_id, amount, timeout=8)\n+        except client.TransientGatewayError:\n+            if attempt == 2:\n+                raise\n+            time.sleep(2 ** attempt)\n"
+  },
+  "coverage": {
+    "name": "coverage.json",
+    "text": "{\n  \"meta\": {\n    \"format\": 2,\n    \"version\": \"7.5.0\",\n    \"timestamp\": \"2026-11-19T10:00:00Z\"\n  },\n  \"files\": {\n    \"payments/retry.py\": {\n      \"executed_lines\": [1, 4, 5, 6, 7, 8, 9, 10],\n      \"missing_lines\": [11],\n      \"excluded_lines\": [],\n      \"summary\": {\n        \"covered_lines\": 8,\n        \"num_statements\": 9,\n        \"percent_covered\": 88.89\n      }\n    }\n  },\n  \"totals\": {\n    \"covered_lines\": 8,\n    \"num_statements\": 9,\n    \"percent_covered\": 88.89\n  }\n}\n"
+  },
+  "incidents": {
+    "name": "incidents.csv",
+    "text": "id,module,severity\nINC-204,payments/retry.py,medium\nINC-198,notifications/email.py,low\n"
+  }
+}
