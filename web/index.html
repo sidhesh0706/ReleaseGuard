@@ -31,7 +31,7 @@
     </section>
     <section class="workspace" aria-label="Release assessment workspace">
       <aside class="panel evidence">
-        <div class="panel-title"><h2>Release evidence</h2><span class="mono" id="evidence-count">0 / 3</span></div>
+        <div class="panel-title"><h2>Release evidence</h2><span class="mono" id="evidence-count">0 / 5</span></div>
         <button class="example" id="load-demo" type="button"><span aria-hidden="true">↗</span> Load checkout demo</button>
         <form id="review-form">
           <label class="upload" data-artifact="patch">
@@ -52,6 +52,19 @@
             <span class="add" aria-hidden="true">+</span>
             <input type="file" accept=".csv" aria-label="Upload incident history">
           </label>
+          <label class="upload" data-artifact="baseline_lock">
+            <span class="file-icon" aria-hidden="true">↶</span>
+            <span><strong>Baseline dependency snapshot</strong><small>package-lock.json · before the release</small></span>
+            <span class="add" aria-hidden="true">+</span>
+            <input type="file" accept=".json" aria-label="Upload baseline npm package-lock file">
+          </label>
+          <label class="upload" data-artifact="release_lock">
+            <span class="file-icon" aria-hidden="true">↷</span>
+            <span><strong>Release dependency snapshot</strong><small>package-lock.json · candidate release</small></span>
+            <span class="add" aria-hidden="true">+</span>
+            <input type="file" accept=".json" aria-label="Upload release npm package-lock file">
+          </label>
+          <p class="privacy-note dependency-note">Privacy Blast Radius maps sniffed data flows to changed npm dependency chains. Static evidence only; source is never executed or sent anywhere.</p>
           <p id="form-error" class="error" role="alert" hidden></p>
           <button class="primary" id="run" type="submit">Run assessment <span aria-hidden="true">→</span></button>
           <button class="clear" id="clear" type="button" hidden>Clear inputs</button>

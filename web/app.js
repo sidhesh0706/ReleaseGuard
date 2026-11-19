@@ -13,6 +13,12 @@ const exportButton = find("#export");
 const initial = [...result.children].map((child) => child.cloneNode(true));
 let report;
 let generation = 0;
+let pendingUploads = 0;
+let reviewing = false;
+
+function syncRunState() {
+  run.disabled = reviewing || pendingUploads > 0;
+}
 
 function element(tag, text, className) {
   const node = document.createElement(tag);
@@ -33,7 +39,7 @@ function updateInputs() {
     tile.querySelector("small").textContent = artifacts[key]?.name || defaults[key];
     tile.querySelector(".add").textContent = artifacts[key] ? "✓" : "+";
   }
-  find("#evidence-count").textContent = Object.keys(artifacts).length + " / 3";
+  find("#evidence-count").textContent = Object.keys(artifacts).length + " / " + tiles.length;
   clear.hidden = !Object.keys(artifacts).length;
 }
 
@@ -46,17 +52,33 @@ function invalidate() {
 
 async function saveFile(key, file) {
   if (!file) return;
+  delete artifacts[key];
+  invalidate();
+  updateInputs();
+  const tile = tiles.find((item) => item.dataset.artifact === key);
+  tile?.setAttribute("aria-busy", "true");
+  if (tile) tile.querySelector("small").textContent = "Reading " + file.name + "…";
+  pendingUploads += 1;
+  syncRunState();
   if (file.size > 750000) {
     showError("Each artifact must be 750 KB or smaller.");
+    tile?.removeAttribute("aria-busy");
+    updateInputs();
+    pendingUploads -= 1;
+    syncRunState();
     return;
   }
   try {
     artifacts[key] = { name: file.name, text: (await file.text()).replace(/^\uFEFF/, "") };
     showError();
-    invalidate();
     updateInputs();
   } catch {
     showError("This file could not be read.");
+  } finally {
+    tile?.removeAttribute("aria-busy");
+    updateInputs();
+    pendingUploads -= 1;
+    syncRunState();
   }
 }
 
@@ -87,6 +109,7 @@ demo.addEventListener("click", async () => {
   try {
     const response = await fetch("/demo.json");
     if (!response.ok) throw new Error("The demo files could not be loaded.");
+    for (const key of Object.keys(artifacts)) delete artifacts[key];
     Object.assign(artifacts, await response.json());
     invalidate();
     showError();
@@ -108,7 +131,8 @@ find("#review-form").addEventListener("submit", async (event) => {
   showError();
   invalidate();
   const revision = generation;
-  run.disabled = true;
+  reviewing = true;
+  syncRunState();
   run.firstChild.textContent = "Reviewing evidence ";
   try {
     const response = await fetch("/api/assess", {
@@ -125,7 +149,8 @@ find("#review-form").addEventListener("submit", async (event) => {
   } catch (err) {
     if (revision === generation) showError(err.message || "Could not reach the assessment server.");
   } finally {
-    run.disabled = false;
+    reviewing = false;
+    syncRunState();
     run.firstChild.textContent = "Run assessment ";
   }
 });
@@ -145,6 +170,7 @@ function evidenceRow(title, meta, action, tag) {
 }
 
 function renderReport(data) {
+  const privacy = data.privacy_radar || { level: "clear", score: 0, summary: { routes: 0 } };
   const verdict = element("div", undefined, "verdict " + data.decision.toLowerCase());
   const lead = element("div");
   lead.append(element("div", "DEPLOYMENT RECOMMENDATION", "mono"), element("div", data.decision, "decision"), element("p", data.advisory));
@@ -154,8 +180,9 @@ function renderReport(data) {
 
   const summary = element("div", undefined, "summary");
   summary.append(metric(data.files.length, "Changed files"),
-    metric(data.coverage.percent === null ? "—" : data.coverage.percent + "%", "Coverage of observed added lines"),
-    metric(data.incidents_supplied ? data.incidents.length : "—", "Related incidents"));
+    metric(data.coverage.percent === null ? "—" : data.coverage.percent + "%", "Coverage of added source lines"),
+    metric(data.incidents_supplied ? data.incidents.length : "—", "Related incidents"),
+    metric(privacy.score + " / 100", "Privacy blast radius"));
 
   const tabs = element("div", undefined, "tabs");
   tabs.setAttribute("role", "tablist");
@@ -167,7 +194,9 @@ function renderReport(data) {
   const views = [
     ["Risk summary", () => renderOverview(data, body)],
     ["Changed files", () => renderFiles(data, body)],
+    ["Privacy radar (" + privacy.summary.routes + ")", () => renderPrivacyRadar(data, body)],
     ["Findings (" + data.findings.length + ")", () => renderFindings(data, body)],
+    ["Dependencies (" + data.dependency_changes.length + ")", () => renderDependencies(data, body)],
     ["Rollback", () => renderRollback(data, body)],
   ];
   const buttons = views.map(([label], index) => {
@@ -227,13 +256,108 @@ function renderOverview(data, body) {
 function renderFiles(data, body) {
   const coverage = data.coverage;
   body.append(element("h3", "Changed files and coverage"));
-  body.append(element("p", "Added source lines · " + coverage.covered + " covered, " + coverage.missed + " missed, " + coverage.unknown + " without line evidence."));
+  body.append(element("p", (coverage.supplied ? "Coverage matched " + (coverage.covered + coverage.missed) + " of " + (coverage.covered + coverage.missed + coverage.unknown) + " added source lines" : "No coverage artifact supplied") + " · " + coverage.covered + " covered, " + coverage.missed + " missed, " + coverage.unknown + " unknown."));
   for (const file of data.files) {
     body.append(evidenceRow(file.path, "+" + file.added + " / −" + file.removed + " lines · " + file.covered + " covered · " + file.missed + " missed · " + file.unknown + " unknown", undefined, file.tags.join(" / ")));
   }
   body.append(element("h3", "Related incidents"));
   if (!data.incidents.length) body.append(element("p", data.incidents_supplied ? "No matching incident modules." : "No incident history supplied."));
   for (const incident of data.incidents) body.append(evidenceRow(incident.id, incident.module, undefined, incident.severity));
+}
+
+function renderPrivacyRadar(data, body) {
+  const radar = data.privacy_radar;
+  body.append(element("h3", "Privacy Blast Radius"));
+  if (!radar) {
+    body.append(element("p", "This report does not include privacy path analysis."));
+    return;
+  }
+  const overview = element("section", undefined, "privacy-overview " + radar.level);
+  const heading = element("div", undefined, "privacy-heading");
+  heading.append(element("span", radar.level.toUpperCase(), "privacy-level"),
+    element("strong", radar.score + " / 100"));
+  const copy = radar.release_gate
+    ? "Release gate active: static evidence links personal data to a changed dependency chain."
+    : radar.sources.length
+      ? "Static evidence only. Review the observed data sinks before promotion."
+      : "No sensitive-data signals were found in the added code.";
+  overview.append(heading, element("p", copy));
+  const stats = element("div", undefined, "privacy-stats");
+  stats.append(metric(radar.summary.signals, "Data signals"),
+    metric(radar.summary.flows, "Observed sinks"),
+    metric(radar.summary.linked_transitive, "Linked transitive packages"));
+  overview.append(stats);
+  body.append(overview);
+
+  if (!radar.sources.length) return;
+  body.append(element("h4", "Detected data categories"));
+  const categories = element("div", undefined, "privacy-chips");
+  for (const category of radar.categories) categories.append(element("span", category, "privacy-chip data"));
+  body.append(categories);
+
+  if (radar.routes.length) {
+    body.append(element("h4", "Candidate dependency paths"));
+    body.append(element("p", "The links below are inferred from imports and calls added in the diff. They show where a release owner should verify the real runtime payload."));
+    const routes = element("div", undefined, "privacy-routes");
+    for (const route of radar.routes) {
+      const card = element("article", undefined, "privacy-route");
+      const path = element("div", undefined, "privacy-path");
+      for (const category of route.categories) path.append(element("span", category, "privacy-node data"));
+      path.append(element("span", "→", "privacy-arrow"), element("span", route.sink, "privacy-node sink"),
+        element("span", "→", "privacy-arrow"),
+        element("span", route.dependency.name + "@" + route.dependency.version, "privacy-node dependency"));
+      for (const item of route.transitive) {
+        path.append(element("span", "→", "privacy-arrow"),
+          element("span", item.name + "@" + item.version, "privacy-node transitive"));
+      }
+      const packageSignal = route.dependency.capability === "Unclassified"
+        ? "No package-name capability signal"
+        : route.dependency.capability + " package-name signal";
+      card.append(path,
+        element("small", route.file + ":" + route.line + " · " + route.evidence + " · " + route.confidence),
+        element("p", packageSignal + ". " + (route.transitive.length
+          ? route.transitive.length + " changed transitive package" + (route.transitive.length === 1 ? "" : "s") + " sits behind this import."
+          : "No changed transitive package was found behind this import.")));
+      routes.append(card);
+    }
+    body.append(routes);
+  } else if (radar.flows.length) {
+    body.append(element("h4", "Observed data sinks"));
+    for (const flow of radar.flows) {
+      body.append(evidenceRow(flow.sink, flow.categories.join(" · ") + " · " + flow.file + ":" + flow.line,
+        flow.evidence + ". No changed imported package could be linked to this sink.", flow.sink_kind));
+    }
+  } else {
+    body.append(element("p", "Sensitive fields were found, but this diff does not show them reaching a configured sink."));
+  }
+
+  body.append(element("h4", "Release-owner checks"));
+  const checks = element("ol", undefined, "privacy-checks");
+  checks.append(element("li", "Confirm that only the minimum necessary fields leave the service."),
+    element("li", "Verify consent, retention and vendor approval for the destination."),
+    element("li", "Approve the direct package and every changed transitive package on the displayed path."));
+  body.append(checks);
+}
+
+function renderDependencies(data, body) {
+  body.append(element("h3", "npm dependency changes"));
+  if (!data.dependency_comparison_supplied) {
+    body.append(element("p", "Upload both baseline and release package-lock.json files (lockfile versions 2 or 3) to compare the reachable dependency graph."));
+    return;
+  }
+  body.append(element("p", "Local lockfile comparison only. New or updated transitive packages need review; this does not check a vulnerability database."));
+  if (!data.dependency_changes.length) {
+    body.append(element("p", "No reachable package additions or updates found."));
+    return;
+  }
+  for (const item of data.dependency_changes) {
+    const version = item.from_version ? item.from_version + " → " + item.version : item.version;
+    const controls = [item.integrity ? "integrity hash present" : "no integrity hash"];
+    if (item.install_script) controls.push("install script");
+    if (item.link) controls.push("local link");
+    const meta = item.change + " · " + item.kind + " · " + version + " · " + controls.join(" · ") + (item.resolved ? " · " + item.resolved : "");
+    body.append(evidenceRow(item.name, meta, "Dependency path: " + item.chain.join(" → "), item.kind));
+  }
 }
 
 function renderFindings(data, body) {

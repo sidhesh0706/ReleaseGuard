@@ -58,7 +58,7 @@ class App(BaseHTTPRequestHandler):
             data = json.loads(self.rfile.read(size))
             if not isinstance(data, dict):
                 raise TypeError
-            values = [data.get(field, "") for field in ("patch", "coverage", "incidents")]
+            values = [data.get(field, "") for field in ("patch", "coverage", "incidents", "baseline_lock", "release_lock")]
             if not all(isinstance(value, str) for value in values):
                 raise TypeError
             if any(len(value.encode()) > LIMIT for value in values):
@@ -66,7 +66,7 @@ class App(BaseHTTPRequestHandler):
                 return
             report = assess(*values)
         except (json.JSONDecodeError, UnicodeError, TypeError, RecursionError):
-            self.send_data(400, {"error": "Send a JSON object with text fields patch, coverage and incidents."})
+            self.send_data(400, {"error": "Send a JSON object with text fields patch, coverage, incidents, baseline_lock and release_lock."})
             return
         except ValueError as error:
             self.send_data(422, {"error": str(error)})

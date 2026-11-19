@@ -1,14 +1,22 @@
 {
   "patch": {
-    "name": "checkout-release.patch",
-    "text": "diff --git a/services/checkout/handler.py b/services/checkout/handler.py\n--- a/services/checkout/handler.py\n+++ b/services/checkout/handler.py\n@@ -19,2 +19,6 @@\n def payment_status(customer, gateway, order):\n-    return gateway.fetch(order)\n+    logger.info(\"Checkout status for %s\", customer.email)\n+    status = gateway.fetch(order, verify=False)\n+    if status is None:\n+        return \"pending\"\n+    return status\ndiff --git a/db/migrations/024_checkout.sql b/db/migrations/024_checkout.sql\n--- /dev/null\n+++ b/db/migrations/024_checkout.sql\n@@ -0,0 +1,2 @@\n+ALTER TABLE checkout_sessions DROP COLUMN processor_reference;\n+ALTER TABLE checkout_sessions ADD COLUMN processor_status TEXT;\ndiff --git a/pyproject.toml b/pyproject.toml\n--- a/pyproject.toml\n+++ b/pyproject.toml\n@@ -5 +5 @@\n-dependencies = [\"gateway-sdk==2.4.0\"]\n+dependencies = [\"gateway-sdk==2.5.0\"]\n"
+    "name": "checkout-privacy-release.patch",
+    "text": "diff --git a/services/checkout/handler.py b/services/checkout/handler.py\n--- a/services/checkout/handler.py\n+++ b/services/checkout/handler.py\n@@ -1 +1,3 @@\n import logging\n+import requests\n+from checkout_telemetry import track\n@@ -19,2 +21,8 @@\n def payment_status(customer, gateway, order):\n-    return gateway.fetch(order)\n+    payload = {\"email\": customer.email, \"customer_id\": customer.id}\n+    track(\"checkout-status\", payload)\n+    requests.post(\"https://collector.example.invalid/checkout\", json=payload, timeout=1)\n+    status = gateway.fetch(order)\n+    if status is None:\n+        return \"pending\"\n+    return status\ndiff --git a/package-lock.json b/package-lock.json\n--- a/package-lock.json\n+++ b/package-lock.json\n@@ -1 +1 @@\n-    \"version\": \"1.0.0\"\n+    \"version\": \"1.1.0\"\n"
   },
   "coverage": {
     "name": "checkout-coverage.info",
-    "text": "TN:checkout\nSF:services/checkout/handler.py\nDA:20,3\nDA:21,3\nDA:22,0\nDA:23,0\nDA:24,2\nend_of_record\n"
+    "text": "TN:checkout\nSF:services/checkout/handler.py\nDA:2,3\nDA:3,3\nDA:22,3\nDA:23,3\nDA:24,3\nDA:25,3\nDA:26,0\nDA:27,0\nDA:28,2\nend_of_record\n"
   },
   "incidents": {
     "name": "past-incidents.csv",
     "text": "id,module,severity\nINC-104,services/checkout,high\nINC-127,db/migrations,medium\nINC-408,services/search,low\n"
+  },
+  "baseline_lock": {
+    "name": "baseline-package-lock.json",
+    "text": "{\"name\":\"checkout-service\",\"lockfileVersion\":3,\"packages\":{\"\":{\"name\":\"checkout-service\",\"dependencies\":{\"checkout-telemetry\":\"1.0.0\"}},\"node_modules/checkout-telemetry\":{\"name\":\"checkout-telemetry\",\"version\":\"1.0.0\",\"resolved\":\"https://registry.example.invalid/checkout-telemetry/-/checkout-telemetry-1.0.0.tgz\",\"integrity\":\"sha512-baseline\",\"dependencies\":{\"session-replay-runtime\":\"0.4.0\"}},\"node_modules/checkout-telemetry/node_modules/session-replay-runtime\":{\"name\":\"session-replay-runtime\",\"version\":\"0.4.0\",\"resolved\":\"https://registry.example.invalid/session-replay-runtime/-/session-replay-runtime-0.4.0.tgz\",\"integrity\":\"sha512-baseline-replay\"}}}"
+  },
+  "release_lock": {
+    "name": "release-package-lock.json",
+    "text": "{\"name\":\"checkout-service\",\"lockfileVersion\":3,\"packages\":{\"\":{\"name\":\"checkout-service\",\"dependencies\":{\"checkout-telemetry\":\"1.1.0\"}},\"node_modules/checkout-telemetry\":{\"name\":\"checkout-telemetry\",\"version\":\"1.1.0\",\"resolved\":\"https://registry.example.invalid/checkout-telemetry/-/checkout-telemetry-1.1.0.tgz\",\"integrity\":\"sha512-release\",\"dependencies\":{\"session-replay-runtime\":\"0.5.0\"}},\"node_modules/checkout-telemetry/node_modules/session-replay-runtime\":{\"name\":\"session-replay-runtime\",\"version\":\"0.5.0\",\"resolved\":\"https://registry.example.invalid/session-replay-runtime/-/session-replay-runtime-0.5.0.tgz\",\"integrity\":\"sha512-release-replay\",\"hasInstallScript\":true}}}"
   }
 }
