@@ -20,14 +20,28 @@ Open [http://127.0.0.1:8765](http://127.0.0.1:8765). In PyCharm, open the projec
 
 | Scenario | How to start | Expected decision |
 | --- | --- | --- |
-| Checkout release | Select **Load checkout demo**, then **Run assessment**. | **HOLD · 88/100**. A destructive migration requires a verified restore plan. |
-| Checkout timeout change | Select **Load moderate-risk demo**, then **Run assessment**. | **CANARY · 24/100**. The update touches the checkout path, leaves one added line uncovered, and matches a past incident. |
-| Payment retry | Select **Load payment retry demo**, then **Run assessment**. | **CANARY · 19/100**. Coverage reaches eight of nine added executable lines, and incident INC-204 matches the changed module. |
-| Receipt label | Select **Load low-risk demo**, then **Run assessment**. | **GO · 0/100**. The receipt copy change is fully covered and triggers no release gate. |
+| Checkout release | Select **Checkout privacy route**, then **Run assessment**. | **HOLD · 88/100**. A destructive migration requires a verified restore plan. |
+| Checkout timeout change | Select **Moderate service change**, then **Run assessment**. | **CANARY · 24/100**. The update touches the checkout path, leaves one added line uncovered, and matches a past incident. |
+| Payment retry | Select **Payment retry logic**, then **Run assessment**. | **CANARY · 19/100**. Coverage reaches eight of nine added executable lines, and incident INC-204 matches the changed module. |
+| Receipt label | Select **Low-risk maintenance**, then **Run assessment**. | **GO · 0/100**. The receipt copy change is fully covered and triggers no release gate. |
 
 Start with the checkout release. Follow the live workflow and open **Security evidence** to see two flagged network flows and use the 3D dependency path to locate `demo-replay`, the transitive package flagged in the sample npm audit. Select **Flat view** for a 2D view. Open **Privacy routes** to trace the candidate from `src/checkout.js` through `@demo/telemetry` to `demo-replay`. In **Findings**, filter by severity and review each finding's evidence, location, and next step.
 
-Use **Try another scenario** to switch directly between assessments. The payment retry case uses a supplied synthetic patch, coverage.py report, and incident CSV. Open **Rollback** for the checklist or select **Export report** for a JSON record. All bundled scenarios use synthetic evidence.
+Use **Try another scenario** to switch directly between assessments. The payment retry case uses a supplied synthetic patch, coverage.py report, and incident CSV. Open **Rollback** for the checklist or select **Export** for a JSON record. All bundled scenarios use synthetic evidence.
+
+### Checkout demo screenshots
+
+The release advisory recommends **HOLD** at **88/100** and identifies the restore-plan requirement.
+
+![Release advisory showing seven inputs, an 88/100 risk score, and the restore-plan requirement](docs/screenshots/release-advisory.webp)
+
+Security evidence flags two network flows and traces the high-severity audit finding to a transitive dependency.
+
+![Security evidence showing two flagged flows and a 3D dependency path from @demo/telemetry to demo-replay](docs/screenshots/security-evidence.webp)
+
+The privacy view links a potential exposure to `src/checkout.js:3` for runtime verification.
+
+![Candidate privacy route showing the source location, telemetry call, and dependency path](docs/screenshots/privacy-route.webp)
 
 ## Evidence and analysis
 
