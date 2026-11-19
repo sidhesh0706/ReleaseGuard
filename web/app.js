@@ -11,6 +11,7 @@ const clear = find("#clear");
 const form = find("#review-form");
 const fileStatus = find("#file-status");
 const exportButton = find("#export");
+const reportState = find("#report-state");
 const initial = [...result.children].map((child) => child.cloneNode(true));
 let report;
 let generation = 0;
@@ -42,6 +43,11 @@ function showError(message) {
   error.textContent = message || "";
 }
 
+function setReportState(label, tone = "idle") {
+  reportState.dataset.tone = tone;
+  reportState.replaceChildren(element("i"), document.createTextNode(" " + label));
+}
+
 function updateInputs() {
   for (const tile of tiles) {
     const key = tile.dataset.artifact;
@@ -53,6 +59,14 @@ function updateInputs() {
   find("#evidence-count").textContent = count + " / " + tiles.length;
   fileStatus.textContent = count ? count + " evidence " + (count === 1 ? "file" : "files") + " loaded." : "";
   clear.hidden = count === 0;
+  for (const button of document.querySelectorAll(".scenario-card[data-scenario]")) {
+    const selected = button.dataset.scenario === activeScenario;
+    button.classList.toggle("selected", selected);
+    button.setAttribute("aria-pressed", String(selected));
+  }
+  if (!report && !run.disabled) {
+    setReportState(count ? count + " signals ready" : "Waiting for evidence", count ? "ready" : "idle");
+  }
 }
 
 function invalidate() {
@@ -105,6 +119,7 @@ clear.addEventListener("click", () => {
 function setControlsBusy(busy) {
   run.disabled = busy;
   for (const button of document.querySelectorAll("[data-scenario]")) button.disabled = busy;
+  form.setAttribute("aria-busy", String(busy));
 }
 
 async function loadScenario(key) {
@@ -127,6 +142,7 @@ async function loadScenario(key) {
     return false;
   } finally {
     setControlsBusy(false);
+    updateInputs();
   }
 }
 
@@ -247,6 +263,7 @@ form.addEventListener("submit", async (event) => {
   }
   showError();
   invalidate();
+  setReportState("Reviewing evidence", "running");
   const revision = generation;
   const workflow = workflowView(activeScenario !== null);
   const pace = activeScenario !== null && !matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -279,6 +296,7 @@ form.addEventListener("submit", async (event) => {
       const message = err.message || "Could not reach the assessment server.";
       workflow.panel.append(element("p", message, "error"));
       showError(message);
+      setReportState("Review interrupted", "alert");
     }
   } finally {
     setControlsBusy(false);
@@ -286,10 +304,18 @@ form.addEventListener("submit", async (event) => {
   }
 });
 
-function metric(value, label) {
+function metric(value, label, detail) {
   const node = element("div", undefined, "metric");
   node.append(element("strong", value), element("small", label));
+  if (detail) node.append(element("span", detail));
   return node;
+}
+
+function signalCard(label, value, detail, tone) {
+  const card = element("article", undefined, "signal-card");
+  card.dataset.tone = tone;
+  card.append(element("small", label), element("strong", value), element("span", detail));
+  return card;
 }
 
 function evidenceRow(title, meta, action, tag) {
@@ -301,17 +327,53 @@ function evidenceRow(title, meta, action, tag) {
 }
 
 function renderReport(data) {
+  const findingCount = data.finding_count ?? data.findings.length;
+  const transitiveChanges = data.dependency_changes?.transitive ?? 0;
+  const privacyRoutes = data.privacy_routes?.length ?? 0;
+  const elevatedFindings = data.findings.filter((finding) => ["critical", "high"].includes(finding.severity)).length;
+  const decisionKey = data.decision.toLowerCase();
+  const posture = {
+    hold: ["Promotion paused", "Resolve or explicitly accept release gates before promotion."],
+    canary: ["Constrained rollout", "Start small and compare health signals against the baseline."],
+    go: ["Standard rollout", "Proceed with ordinary monitoring and rollback ownership."],
+  }[decisionKey] ?? ["Manual review", "Review the supplied evidence with the release owner."];
+
   const verdict = element("div", undefined, "verdict " + data.decision.toLowerCase());
-  const lead = element("div");
-  lead.append(element("div", "Deployment recommendation", "mono"), element("div", data.decision, "decision"), element("p", data.advisory));
+  const lead = element("div", undefined, "verdict-lead");
+  const eyebrow = element("div", undefined, "verdict-eyebrow");
+  eyebrow.append(element("span", "Deployment recommendation"), element("span", posture[0], "posture"));
+  const context = element("div", undefined, "decision-context");
+  context.append(
+    element("span", data.blockers.length ? data.blockers.length + " release " + (data.blockers.length === 1 ? "gate" : "gates") : "No hard release gates"),
+    element("span", posture[1])
+  );
+  lead.append(eyebrow, element("div", data.decision, "decision"), element("p", data.advisory), context);
   const score = element("div", undefined, "score");
-  score.append(element("strong", data.score), document.createTextNode(" / 100"), element("small", "Risk score"));
+  score.style.setProperty("--score", Math.max(0, Math.min(100, data.score)) + "%");
+  const scoreInner = element("div", undefined, "score-inner");
+  scoreInner.append(element("strong", data.score), element("small", "risk score"));
+  score.append(scoreInner);
   verdict.append(lead, score);
 
   const summary = element("div", undefined, "summary");
-  summary.append(metric(data.files.length, "Changed files"),
-    metric(data.coverage.percent === null ? "—" : data.coverage.percent + "%", "Coverage of observed added lines"),
-    metric(data.incidents_supplied ? data.incidents.length : "—", "Related incidents"));
+  summary.append(
+    metric(data.files.length, "Changed files", "Patch scope"),
+    metric(data.coverage.percent === null ? "—" : data.coverage.percent + "%", "Observed line coverage", data.coverage.supplied ? "Coverage supplied" : "No coverage file"),
+    metric(findingCount, "Actionable findings", elevatedFindings ? elevatedFindings + " elevated" : "No elevated findings"),
+    metric(transitiveChanges, "Transitive updates", privacyRoutes + " privacy " + (privacyRoutes === 1 ? "route" : "routes"))
+  );
+
+  const signals = element("section", undefined, "signal-strip");
+  const signalHeading = element("div", undefined, "signal-strip-heading");
+  signalHeading.append(element("span", "Evidence pulse", "mono"), element("small", "A quick read before you open the detail."));
+  const signalGrid = element("div", undefined, "signal-grid");
+  signalGrid.append(
+    signalCard("Release call", data.decision, posture[0], decisionKey),
+    signalCard("Supply chain", transitiveChanges + " transitive", data.dependency_changes ? "Compared from lockfiles" : "No lockfile diff supplied", transitiveChanges ? "attention" : "quiet"),
+    signalCard("Privacy sniff", privacyRoutes + " candidates", privacyRoutes ? "Trace runtime payload + destination" : "No candidate routes", privacyRoutes ? "attention" : "quiet"),
+    signalCard("Attention", elevatedFindings ? elevatedFindings + " elevated" : "No elevated", elevatedFindings ? "Critical or high findings" : "No critical or high findings", elevatedFindings ? "alert" : "calm")
+  );
+  signals.append(signalHeading, signalGrid);
 
   const tabs = element("div", undefined, "tabs");
   tabs.setAttribute("role", "tablist");
@@ -356,18 +418,26 @@ function renderReport(data) {
   });
   tabs.append(...buttons);
   activate(0);
-  result.replaceChildren(verdict, summary, tabs, body);
+  result.replaceChildren(verdict, summary, signals, tabs, body);
   exportButton.hidden = false;
+  setReportState(data.decision + " · " + data.score + " score", decisionKey);
 }
 
 function renderOverview(data, body) {
+  const intro = element("div", undefined, "tab-intro");
+  intro.append(
+    element("span", "Risk pulse", "mono"),
+    element("h3", "What is shaping this call"),
+    element("p", "The score is a transparent total of change impact, test evidence, incident history, and the security signals you supplied.")
+  );
+  body.append(intro);
   if (data.blockers.length) {
     const blockers = element("div", undefined, "blockers");
-    blockers.append(element("strong", "Release gates"));
+    blockers.append(element("span", "Release gates", "severity critical"), element("strong", data.blockers.length + " item" + (data.blockers.length === 1 ? "" : "s") + " need release-owner attention"));
     for (const gate of data.blockers) blockers.append(element("p", gate));
     body.append(blockers);
   }
-  body.append(element("h3", "What drives the score"));
+  body.append(element("h3", "Score composition"));
   const dimensions = element("div", undefined, "dimensions");
   for (const row of data.dimensions) {
     const item = element("div", undefined, "dimension");
@@ -384,8 +454,19 @@ function renderOverview(data, body) {
 
 function renderFiles(data, body) {
   const coverage = data.coverage;
-  body.append(element("h3", "Changed files and coverage"));
-  body.append(element("p", "Added source lines · " + coverage.covered + " covered, " + coverage.missed + " missed, " + coverage.unknown + " without line evidence."));
+  const coveragePanel = element("section", undefined, "coverage-panel");
+  const coverageLead = element("div");
+  coverageLead.append(element("span", "Change evidence", "mono"), element("h3", "Changed files and coverage"), element("p", "Added source lines only. Coverage tracks what the supplied report can actually prove."));
+  const coverageScore = element("div", undefined, "coverage-score");
+  coverageScore.append(element("strong", coverage.percent === null ? "—" : coverage.percent + "%"), element("small", "observed coverage"));
+  coveragePanel.append(coverageLead, coverageScore);
+  const coverageBreakdown = element("div", undefined, "coverage-breakdown");
+  coverageBreakdown.append(
+    element("span", coverage.covered + " covered"),
+    element("span", coverage.missed + " missed"),
+    element("span", coverage.unknown + " unknown")
+  );
+  body.append(coveragePanel, coverageBreakdown);
   for (const file of data.files) {
     body.append(evidenceRow(file.path, "+" + file.added + " / −" + file.removed + " lines · " + file.covered + " covered · " + file.missed + " missed · " + file.unknown + " unknown", undefined, file.tags.join(" / ")));
   }
@@ -498,6 +579,13 @@ function renderDependencyMap(changes, auditFindings, body) {
 
 function renderSecurity(data, body) {
   const auditFindings = data.findings.filter((item) => item.title.startsWith("npm audit flags"));
+  const intro = element("div", undefined, "tab-intro");
+  intro.append(
+    element("span", "Security evidence", "mono"),
+    element("h3", "What crosses the release boundary"),
+    element("p", "Review network metadata, imported audit results, and the package paths introduced by this release.")
+  );
+  body.append(intro);
   const sections = element("div", undefined, "security-sections");
   const network = element("section", undefined, "security-section");
   const dependencies = element("section", undefined, "security-section");
@@ -540,23 +628,44 @@ function renderSecurity(data, body) {
 }
 
 function renderPrivacy(data, body) {
-  body.append(element("h3", "Potential personal-data routes"));
+  const intro = element("div", undefined, "tab-intro privacy-intro");
+  intro.append(
+    element("span", "Privacy sniff", "mono"),
+    element("h3", "Potential personal-data routes"),
+    element("p", "Candidate traces combine changed source patterns with the lockfile graph. They are prompts for runtime validation, not a claim that a payload was sent.")
+  );
+  body.append(intro);
   if (!data.privacy_routes?.length) {
-    body.append(element("p", "No candidate routes found in the supplied source and lockfiles."));
+    const clean = element("div", undefined, "privacy-empty");
+    clean.append(element("span", "No candidate traces found", "evidence-result"), element("p", "No changed source pattern connected to a changed package path in the supplied evidence."));
+    body.append(clean);
     return;
   }
-  body.append(element("p", "These candidates come from changed source lines and the npm dependency graph. Confirm the payload and destination at runtime."));
+  const routes = element("div", undefined, "route-list");
   for (const route of data.privacy_routes) {
-    const candidate = evidenceRow(route.chain.join(" → "), route.file + ":" + route.line + " · " + route.sink,
-      "Review data minimization and validate the changed package before release.", "Candidate");
-    candidate.classList.add("route");
-    const chain = candidate.querySelector("strong");
-    chain.className = "route-chain";
+    const candidate = element("article", undefined, "route");
+    const heading = element("div", undefined, "route-heading");
+    heading.append(
+      element("span", "Candidate route", "severity"),
+      element("strong", "Verify the payload and destination at runtime"),
+      element("small", route.file + ":" + route.line + " · " + route.sink)
+    );
+    const trace = element("div", undefined, "route-trace");
+    const source = element("div", undefined, "route-stop source");
+    source.append(element("small", "Changed source"), element("strong", "Sensitive field pattern"));
+    const sink = element("div", undefined, "route-stop sink");
+    sink.append(element("small", "Observed sink"), element("strong", route.sink));
+    trace.append(source, sink);
+    const chainLabel = element("span", "Dependency path", "route-label");
+    const chain = element("div", undefined, "route-chain");
     const packages = route.chain.map((name) => element("span", name, "route-package"));
     chain.replaceChildren(...packages.flatMap((item, index) =>
       index === 0 ? [item] : [element("span", " → ", "route-arrow"), item]));
-    body.append(candidate);
+    const guidance = element("p", "Check data minimization, consent, destination controls, and whether the changed package should be approved for this release.", "route-guidance");
+    candidate.append(heading, trace, chainLabel, chain, guidance);
+    routes.append(candidate);
   }
+  body.append(routes);
 }
 
 function renderRollback(data, body) {

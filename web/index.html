@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#111312">
+  <meta name="theme-color" content="#080c16">
   <meta name="description" content="ReleaseGuard reviews deployment risk using code changes, test coverage and incident history.">
   <title>ReleaseGuard · Deployment risk assessment</title>
   <link rel="stylesheet" href="/style.css">
@@ -21,6 +21,9 @@
     <symbol id="icon-arrow" viewBox="0 0 24 24"><path d="M4 12h15m-6-6 6 6-6 6"/></symbol>
     <symbol id="icon-download" viewBox="0 0 24 24"><path d="M12 3v12m-4-4 4 4 4-4M5 16v4h14v-4"/></symbol>
     <symbol id="icon-report" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v5h4M9 12h6m-6 4h6"/></symbol>
+    <symbol id="icon-spark" viewBox="0 0 24 24"><path d="m12 3 1.5 5.2L19 10l-5.5 1.8L12 17l-1.5-5.2L5 10l5.5-1.8L12 3Z"/><path d="m19 16 .7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7L19 16Z"/></symbol>
+    <symbol id="icon-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v2"/></symbol>
+    <symbol id="icon-route" viewBox="0 0 24 24"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M7 6h3a4 4 0 0 1 4 4v4a4 4 0 0 0 4 4h1"/></symbol>
   </svg>
   <header class="masthead">
     <div class="shell mast-inner">
@@ -30,58 +33,99 @@
     </div>
   </header>
   <main class="shell">
-    <section class="hero">
+    <section class="hero" aria-labelledby="hero-title">
       <div class="hero-content">
-        <h1>Deployment risk assessment</h1>
-        <p>Review code changes, test coverage, and security evidence before production.</p>
+        <p class="eyebrow"><i></i> Release intelligence · local-first</p>
+        <h1 id="hero-title">Ship with <span>context,</span><br>not hope.</h1>
+        <p>Turn the evidence around a code change into a clear deployment call—coverage, incidents, supply-chain changes, and privacy routes in one review.</p>
+        <div class="hero-actions">
+          <a class="hero-cta" href="#evidence">Start a release review <svg class="icon" aria-hidden="true"><use href="#icon-arrow"/></svg></a>
+          <span class="hero-signal"><i></i> 7 evidence signals</span>
+        </div>
       </div>
       <div class="hero-art" aria-hidden="true">
         <div class="scope"><b></b><b></b><b></b><i></i><em></em></div>
+        <div class="hero-readout"><span>LIVE REVIEW</span><strong>LOCAL</strong><small>Evidence stays in your workspace</small></div>
       </div>
     </section>
+    <section class="trust-rail" aria-label="ReleaseGuard capabilities">
+      <span><svg class="icon" aria-hidden="true"><use href="#icon-diff"/></svg> Change-aware risk</span>
+      <span><svg class="icon" aria-hidden="true"><use href="#icon-package"/></svg> Transitive dependency paths</span>
+      <span><svg class="icon" aria-hidden="true"><use href="#icon-route"/></svg> Privacy route candidates</span>
+      <span><svg class="icon" aria-hidden="true"><use href="#icon-lock"/></svg> Source values never shown</span>
+    </section>
     <section class="workspace" aria-label="Release assessment workspace">
-      <aside class="panel evidence">
-        <div class="panel-title"><h2>Release evidence</h2><span class="mono" id="evidence-count">0 / 7</span></div>
+      <aside class="panel evidence" id="evidence">
+        <div class="panel-title intake-heading">
+          <div><p class="panel-kicker">01 · Evidence intake</p><h2>Build your release case</h2></div>
+          <span class="evidence-count mono" id="evidence-count">0 / 7</span>
+        </div>
+        <div class="intake-intro">
+          <strong>Start with a live scenario</strong>
+          <span>or attach the evidence from your release.</span>
+        </div>
         <div class="scenario-buttons" aria-label="Demo scenarios">
-          <button class="example" id="load-demo" data-scenario="checkout" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-play"/></svg> Load checkout demo</button>
-          <button class="example" id="load-moderate-demo" data-scenario="moderate" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-play"/></svg> Load moderate-risk demo</button>
-          <button class="example" data-scenario="payments" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-play"/></svg> Load payment retry demo</button>
-          <button class="example" data-scenario="go" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-play"/></svg> Load low-risk demo</button>
+          <button class="example scenario-card" id="load-demo" data-scenario="checkout" data-outcome="hold" type="button" aria-pressed="false">
+            <span class="scenario-icon"><svg class="icon" aria-hidden="true"><use href="#icon-play"/></svg></span>
+            <span class="scenario-copy"><strong>Checkout privacy route</strong><small>Changed telemetry path + vulnerable package</small></span>
+            <span class="scenario-outcome">HOLD</span>
+          </button>
+          <button class="example scenario-card" id="load-moderate-demo" data-scenario="moderate" data-outcome="canary" type="button" aria-pressed="false">
+            <span class="scenario-icon"><svg class="icon" aria-hidden="true"><use href="#icon-play"/></svg></span>
+            <span class="scenario-copy"><strong>Moderate service change</strong><small>Coverage and incident signal to review</small></span>
+            <span class="scenario-outcome">CANARY</span>
+          </button>
+          <button class="example scenario-card" data-scenario="payments" data-outcome="canary" type="button" aria-pressed="false">
+            <span class="scenario-icon"><svg class="icon" aria-hidden="true"><use href="#icon-play"/></svg></span>
+            <span class="scenario-copy"><strong>Payment retry logic</strong><small>Release gates with a constrained rollout</small></span>
+            <span class="scenario-outcome">CANARY</span>
+          </button>
+          <button class="example scenario-card" data-scenario="go" data-outcome="go" type="button" aria-pressed="false">
+            <span class="scenario-icon"><svg class="icon" aria-hidden="true"><use href="#icon-play"/></svg></span>
+            <span class="scenario-copy"><strong>Low-risk maintenance</strong><small>Clean evidence with normal monitoring</small></span>
+            <span class="scenario-outcome">GO</span>
+          </button>
         </div>
         <p id="file-status" class="file-status" role="status"></p>
         <form id="review-form">
-          <label class="upload" data-artifact="patch">
-            <span class="file-icon"><svg class="icon" aria-hidden="true"><use href="#icon-diff"/></svg></span>
-            <span><strong>Code diff</strong><small>.patch or .diff · required</small></span>
-            <span class="add" aria-hidden="true">+</span>
-            <input type="file" accept=".diff,.patch,.txt" aria-label="Upload code diff">
-          </label>
-          <label class="upload" data-artifact="coverage">
-            <span class="file-icon"><svg class="icon" aria-hidden="true"><use href="#icon-coverage"/></svg></span>
-            <span><strong>Test coverage</strong><small>LCOV or coverage.py JSON</small></span>
-            <span class="add" aria-hidden="true">+</span>
-            <input type="file" accept=".info,.lcov,.json,.txt" aria-label="Upload test coverage">
-          </label>
-          <label class="upload" data-artifact="incidents">
-            <span class="file-icon"><svg class="icon" aria-hidden="true"><use href="#icon-history"/></svg></span>
-            <span><strong>Incident history</strong><small>CSV · id, module, severity</small></span>
-            <span class="add" aria-hidden="true">+</span>
-            <input type="file" accept=".csv" aria-label="Upload incident history">
-          </label>
-          <label class="upload" data-artifact="network_flows">
-            <span class="file-icon"><svg class="icon" aria-hidden="true"><use href="#icon-network"/></svg></span>
-            <span><strong>Network flow metadata</strong><small>Sanitized CSV · optional</small></span>
-            <span class="add" aria-hidden="true">+</span>
-            <input type="file" accept=".csv" aria-label="Upload network flow metadata">
-          </label>
-          <label class="upload" data-artifact="npm_audit">
-            <span class="file-icon"><svg class="icon" aria-hidden="true"><use href="#icon-package"/></svg></span>
-            <span><strong>npm audit report</strong><small>npm audit --json · optional</small></span>
-            <span class="add" aria-hidden="true">+</span>
-            <input type="file" accept=".json" aria-label="Upload npm audit report">
-          </label>
+          <div class="evidence-section">
+            <div class="evidence-section-heading"><span>Core evidence</span><small>Diff required · rest enriches the call</small></div>
+            <label class="upload" data-artifact="patch">
+              <span class="file-icon"><svg class="icon" aria-hidden="true"><use href="#icon-diff"/></svg></span>
+              <span><strong>Code diff</strong><small>.patch or .diff · required</small></span>
+              <span class="add" aria-hidden="true">+</span>
+              <input type="file" accept=".diff,.patch,.txt" aria-label="Upload code diff">
+            </label>
+            <label class="upload" data-artifact="coverage">
+              <span class="file-icon"><svg class="icon" aria-hidden="true"><use href="#icon-coverage"/></svg></span>
+              <span><strong>Test coverage</strong><small>LCOV or coverage.py JSON</small></span>
+              <span class="add" aria-hidden="true">+</span>
+              <input type="file" accept=".info,.lcov,.json,.txt" aria-label="Upload test coverage">
+            </label>
+            <label class="upload" data-artifact="incidents">
+              <span class="file-icon"><svg class="icon" aria-hidden="true"><use href="#icon-history"/></svg></span>
+              <span><strong>Incident history</strong><small>CSV · id, module, severity</small></span>
+              <span class="add" aria-hidden="true">+</span>
+              <input type="file" accept=".csv" aria-label="Upload incident history">
+            </label>
+          </div>
+          <div class="evidence-section">
+            <div class="evidence-section-heading"><span>Defensive signals</span><small>Optional · adds security context</small></div>
+            <label class="upload" data-artifact="network_flows">
+              <span class="file-icon"><svg class="icon" aria-hidden="true"><use href="#icon-network"/></svg></span>
+              <span><strong>Network flow metadata</strong><small>Sanitized CSV · optional</small></span>
+              <span class="add" aria-hidden="true">+</span>
+              <input type="file" accept=".csv" aria-label="Upload network flow metadata">
+            </label>
+            <label class="upload" data-artifact="npm_audit">
+              <span class="file-icon"><svg class="icon" aria-hidden="true"><use href="#icon-package"/></svg></span>
+              <span><strong>npm audit report</strong><small>npm audit --json · optional</small></span>
+              <span class="add" aria-hidden="true">+</span>
+              <input type="file" accept=".json" aria-label="Upload npm audit report">
+            </label>
+          </div>
           <details class="lock-inputs">
-            <summary>Compare npm lockfiles</summary>
+            <summary><span>Supply-chain diff</span><small>Compare baseline and release lockfiles</small></summary>
             <label class="upload" data-artifact="baseline_lock">
               <span class="file-icon"><svg class="icon" aria-hidden="true"><use href="#icon-package"/></svg></span>
               <span><strong>Baseline lockfile</strong><small>package-lock.json</small></span>
@@ -96,23 +140,31 @@
             </label>
           </details>
           <p id="form-error" class="error" role="alert" hidden></p>
-          <button class="primary" id="run" type="submit">Run assessment <svg class="icon" aria-hidden="true"><use href="#icon-arrow"/></svg></button>
+          <button class="primary" id="run" type="submit"><span>Run assessment</span><svg class="icon" aria-hidden="true"><use href="#icon-arrow"/></svg></button>
           <button class="clear" id="clear" type="button" hidden>Clear inputs</button>
         </form>
-        <p class="privacy-note"><svg class="icon" aria-hidden="true"><use href="#icon-shield"/></svg> Files are processed locally. Reports omit source lines and matched values.</p>
+        <p class="privacy-note"><svg class="icon" aria-hidden="true"><use href="#icon-shield"/></svg><span><strong>Private by design.</strong> Files are processed locally; reports omit source lines and matched values.</span></p>
       </aside>
       <section class="panel report" aria-labelledby="report-title">
-        <div class="panel-title report-heading"><h2 id="report-title">Release advisory</h2><button class="export" id="export" type="button" hidden><svg class="icon" aria-hidden="true"><use href="#icon-download"/></svg> Export report</button></div>
+        <div class="panel-title report-heading">
+          <div><p class="panel-kicker">02 · Decision canvas</p><h2 id="report-title">Release advisory</h2></div>
+          <div class="report-actions"><span class="report-state" id="report-state" data-tone="idle"><i></i> Waiting for evidence</span><button class="export" id="export" type="button" hidden><svg class="icon" aria-hidden="true"><use href="#icon-download"/></svg> Export</button></div>
+        </div>
         <div id="result">
           <div class="empty">
-            <div class="empty-symbol"><svg class="icon" aria-hidden="true"><use href="#icon-report"/></svg></div>
-            <h3>Ready for a release review</h3>
-            <p>Load the checkout demo or upload your own patch to see a recommendation and the evidence behind it.</p>
+            <div class="empty-top"><div class="empty-symbol"><svg class="icon" aria-hidden="true"><use href="#icon-report"/></svg></div><span class="empty-kicker">Your review canvas</span></div>
+            <h3>Ready when your release is.</h3>
+            <p>Load a scenario or attach a patch. We’ll turn it into a decision with a trail you can defend.</p>
+            <div class="empty-checks" aria-label="Assessment capabilities">
+              <span><i>01</i> Read the change</span>
+              <span><i>02</i> Trace dependency risk</span>
+              <span><i>03</i> Surface privacy routes</span>
+            </div>
           </div>
         </div>
       </section>
     </section>
-    <footer><span>ReleaseGuard</span><span>Deployment decisions stay with your release owner.</span></footer>
+    <footer><span><strong>ReleaseGuard</strong> · evidence before elevation</span><span>Deployment decisions stay with your release owner.</span></footer>
   </main>
 </body>
 </html>
