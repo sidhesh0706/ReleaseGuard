@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111312">
+  <meta name="description" content="ReleaseGuard reviews deployment risk using code changes, test coverage and incident history.">
+  <title>ReleaseGuard · Deployment risk assessment</title>
+  <link rel="stylesheet" href="/style.css">
+  <script defer src="/app.js"></script>
+</head>
+<body>
+  <header class="masthead">
+    <div class="shell mast-inner">
+      <a href="/" class="wordmark"><span class="brandmark" aria-hidden="true"><i></i></span>ReleaseGuard</a>
+      <span class="build">AGENT FORGE <span> / </span> LLMBORGHINI</span>
+      <span class="local"><i></i> Local workspace</span>
+    </div>
+  </header>
+  <main class="shell">
+    <section class="hero">
+      <div class="hero-content">
+        <div class="eyebrow"><span></span> RELEASE INTELLIGENCE</div>
+        <h1>Deployment<br>risk assessment<span>.</span></h1>
+        <p>Review what changed, where test evidence is weak, and what could go wrong before the release moves to production.</p>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <div class="scope"><b></b><b></b><b></b><i></i><em></em></div>
+        <span class="cross top-left">+</span><span class="cross bottom-right">+</span>
+      </div>
+    </section>
+    <section class="workspace" aria-label="Release assessment workspace">
+      <aside class="panel evidence">
+        <div class="panel-title"><h2>Release evidence</h2><span class="mono" id="evidence-count">0 / 3</span></div>
+        <button class="example" id="load-demo" type="button"><span aria-hidden="true">↗</span> Load checkout demo</button>
+        <form id="review-form">
+          <label class="upload" data-artifact="patch">
+            <span class="file-icon" aria-hidden="true">⌘</span>
+            <span><strong>Code diff</strong><small>.patch or .diff · required</small></span>
+            <span class="add" aria-hidden="true">+</span>
+            <input type="file" accept=".diff,.patch,.txt" aria-label="Upload code diff">
+          </label>
+          <label class="upload" data-artifact="coverage">
+            <span class="file-icon" aria-hidden="true">▥</span>
+            <span><strong>Test coverage</strong><small>LCOV or coverage.py JSON</small></span>
+            <span class="add" aria-hidden="true">+</span>
+            <input type="file" accept=".info,.lcov,.json,.txt" aria-label="Upload test coverage">
+          </label>
+          <label class="upload" data-artifact="incidents">
+            <span class="file-icon" aria-hidden="true">≡</span>
+            <span><strong>Incident history</strong><small>CSV · id, module, severity</small></span>
+            <span class="add" aria-hidden="true">+</span>
+            <input type="file" accept=".csv" aria-label="Upload incident history">
+          </label>
+          <p id="form-error" class="error" role="alert" hidden></p>
+          <button class="primary" id="run" type="submit">Run assessment <span aria-hidden="true">→</span></button>
+          <button class="clear" id="clear" type="button" hidden>Clear inputs</button>
+        </form>
+        <p class="privacy-note"><span aria-hidden="true">◇</span> Files are processed locally. Reports omit source lines and matched values.</p>
+      </aside>
+      <section class="panel report" aria-labelledby="report-title">
+        <div class="panel-title report-heading"><h2 id="report-title">Release advisory</h2><button class="export" id="export" type="button" hidden>↓ Export report</button></div>
+        <div id="result" aria-live="polite">
+          <div class="empty">
+            <div class="empty-symbol" aria-hidden="true"><span></span><span></span><span></span></div>
+            <h3>Ready for a release review</h3>
+            <p>Load the checkout demo or upload your own patch to see a recommendation and the evidence behind it.</p>
+          </div>
+          <div class="empty-footer"><span>GO</span><span>CANARY</span><span>HOLD</span></div>
+        </div>
+      </section>
+    </section>
+    <footer><span>ReleaseGuard</span><span>Deployment decisions stay with your release owner.</span></footer>
+  </main>
+</body>
+</html>

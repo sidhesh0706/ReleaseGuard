@@ -1,0 +1,14 @@
+{
+  "patch": {
+    "name": "checkout-release.patch",
+    "text": "diff --git a/services/checkout/handler.py b/services/checkout/handler.py\n--- a/services/checkout/handler.py\n+++ b/services/checkout/handler.py\n@@ -19,2 +19,6 @@\n def payment_status(customer, gateway, order):\n-    return gateway.fetch(order)\n+    logger.info(\"Checkout status for %s\", customer.email)\n+    status = gateway.fetch(order, verify=False)\n+    if status is None:\n+        return \"pending\"\n+    return status\ndiff --git a/db/migrations/024_checkout.sql b/db/migrations/024_checkout.sql\n--- /dev/null\n+++ b/db/migrations/024_checkout.sql\n@@ -0,0 +1,2 @@\n+ALTER TABLE checkout_sessions DROP COLUMN processor_reference;\n+ALTER TABLE checkout_sessions ADD COLUMN processor_status TEXT;\ndiff --git a/pyproject.toml b/pyproject.toml\n--- a/pyproject.toml\n+++ b/pyproject.toml\n@@ -5 +5 @@\n-dependencies = [\"gateway-sdk==2.4.0\"]\n+dependencies = [\"gateway-sdk==2.5.0\"]\n"
+  },
+  "coverage": {
+    "name": "checkout-coverage.info",
+    "text": "TN:checkout\nSF:services/checkout/handler.py\nDA:20,3\nDA:21,3\nDA:22,0\nDA:23,0\nDA:24,2\nend_of_record\n"
+  },
+  "incidents": {
+    "name": "past-incidents.csv",
+    "text": "id,module,severity\nINC-104,services/checkout,high\nINC-127,db/migrations,medium\nINC-408,services/search,low\n"
+  }
+}
