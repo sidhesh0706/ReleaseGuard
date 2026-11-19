@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 from engine import LIMIT, assess
 
 ROOT = Path(__file__).resolve().parent
+INPUT_FIELDS = ("patch", "coverage", "incidents", "network_flows", "npm_audit", "baseline_lock", "release_lock")
 STATIC = {
     "/": ("index.html", "text/html; charset=utf-8"),
     "/app.js": ("app.js", "text/javascript; charset=utf-8"),
@@ -51,14 +52,14 @@ class App(BaseHTTPRequestHandler):
             size = int(self.headers.get("Content-Length", "0"))
         except ValueError:
             size = 0
-        if not 1 <= size <= 6 * LIMIT + 1024:
+        if not 1 <= size <= len(INPUT_FIELDS) * 6 * LIMIT + 1024:
             self.send_data(413, {"error": "Request is empty or exceeds the size limit."})
             return
         try:
             data = json.loads(self.rfile.read(size))
             if not isinstance(data, dict):
                 raise TypeError
-            values = [data.get(field, "") for field in ("patch", "coverage", "incidents", "baseline_lock", "release_lock")]
+            values = [data.get(field, "") for field in INPUT_FIELDS]
             if not all(isinstance(value, str) for value in values):
                 raise TypeError
             if any(len(value.encode()) > LIMIT for value in values):
@@ -66,7 +67,7 @@ class App(BaseHTTPRequestHandler):
                 return
             report = assess(*values)
         except (json.JSONDecodeError, UnicodeError, TypeError, RecursionError):
-            self.send_data(400, {"error": "Send a JSON object with text fields patch, coverage, incidents, baseline_lock and release_lock."})
+            self.send_data(400, {"error": "Send a JSON object with text values for the evidence fields."})
             return
         except ValueError as error:
             self.send_data(422, {"error": str(error)})
