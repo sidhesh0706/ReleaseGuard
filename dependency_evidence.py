@@ -47,6 +47,8 @@ def installed_name(path):
 
 
 def read_lock(raw):
+    """Parse and validate npm package-lock v2/v3 structure and dependency edges."""
+    raw = raw.removeprefix("\ufeff")
     try:
         document = json.loads(raw)
         if not isinstance(document, dict) or type(document.get("lockfileVersion")) is not int or document["lockfileVersion"] not in (2, 3):
@@ -127,15 +129,17 @@ def chain_for(path, parents):
 
 
 def label_version(value):
-    if isinstance(value, str) and re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.+-]+)?", value):
-        return value[:96]
+    if isinstance(value, str):
+        v = value.strip()
+        if re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.+-]+)?", v):
+            return v[:96]
     return None
 
 
 def source_category(value):
-    if not value:
+    if not value or not isinstance(value, str):
         return "Unspecified"
-    source = urlsplit(value)
+    source = urlsplit(value.strip())
     if source.scheme == "https" and source.hostname and not (source.username or source.password):
         return "HTTPS"
     return "Source requires review"

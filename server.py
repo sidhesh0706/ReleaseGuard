@@ -49,7 +49,8 @@ class App(BaseHTTPRequestHandler):
             self.send_data(404, {"error": "Page not found."})
 
     def do_POST(self):
-        if self.path not in {"/api/assess", "/api/assess/stream"}:
+        path = urlsplit(self.path).path
+        if path not in {"/api/assess", "/api/assess/stream"}:
             self.send_data(404, {"error": "Endpoint not found."})
             return
         if self.headers.get_content_type() != "application/json":
@@ -75,7 +76,7 @@ class App(BaseHTTPRequestHandler):
         except (json.JSONDecodeError, UnicodeError, TypeError, RecursionError):
             self.send_data(400, {"error": "Send a JSON object with text values for the evidence fields."})
             return
-        if self.path == "/api/assess/stream":
+        if path == "/api/assess/stream":
             self.stream_assessment(values)
             return
         try:
@@ -115,6 +116,9 @@ class App(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     host = os.environ.get("RELEASEGUARD_HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", "8765"))
-    with ThreadingHTTPServer((host, port), App) as server:
-        print(f"ReleaseGuard is running at http://{host}:{port}", flush=True)
-        server.serve_forever()
+    try:
+        with ThreadingHTTPServer((host, port), App) as server:
+            print(f"ReleaseGuard is running at http://{host}:{port}", flush=True)
+            server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nReleaseGuard server stopped.")
