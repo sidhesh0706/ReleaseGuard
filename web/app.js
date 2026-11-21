@@ -214,15 +214,34 @@ async function runWorkflow(workflow, revision, pace) {
     body: JSON.stringify(Object.fromEntries(Object.entries(artifacts).map(([key, input]) => [key, input.text]))),
   });
   if (!response.ok) {
-    const data = await response.json();
-    throw new Error(data.error || "The assessment failed.");
+    let message = "The assessment failed.";
+    try {
+      const data = await response.json();
+      message = data.error || message;
+    } catch {
+      if (response.statusText) message = `${response.status} ${response.statusText}`;
+    }
+    throw new Error(message);
   }
   const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
   let pending = "";
   try {
     while (revision === generation) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        if (pending && pending.trim()) {
+          const lines = [pending];
+          pending = "";
+          for (const line of lines) {
+            if (revision !== generation) return;
+            if (!line) continue;
+            const event = JSON.parse(line);
+            if (event.type === "error") throw new Error(event.message);
+            if (event.type === "result") return event.report;
+          }
+        }
+        break;
+      }
       pending += value;
       const lines = pending.split("\n");
       pending = lines.pop();
@@ -273,7 +292,8 @@ form.addEventListener("submit", async (event) => {
     workflow.panel.scrollIntoView({ block: "start" });
   }
   setControlsBusy(true);
-  run.firstChild.textContent = "Reviewing evidence ";
+  const runLabel = run.querySelector("span") || run.firstChild;
+  runLabel.textContent = "Reviewing evidence ";
   try {
     const data = await runWorkflow(workflow, revision, pace);
     if (revision === generation) {
@@ -300,7 +320,7 @@ form.addEventListener("submit", async (event) => {
     }
   } finally {
     setControlsBusy(false);
-    run.firstChild.textContent = "Run assessment ";
+    runLabel.textContent = "Run assessment ";
   }
 });
 
@@ -481,7 +501,7 @@ function renderFindings(data, body) {
     body.append(element("p", "No findings matched the configured change, privacy and security rules."));
     return;
   }
-  if (data.finding_count > data.findings.length) {
+  if ((data.finding_count ?? data.findings.length) > data.findings.length) {
     body.append(element("p", "Showing the " + data.findings.length + " highest-priority findings."));
   }
   const filters = element("div", undefined, "finding-filters");
@@ -681,6 +701,8 @@ exportButton.addEventListener("click", () => {
   const download = element("a");
   download.href = URL.createObjectURL(blob);
   download.download = "releaseguard-advisory.json";
+  document.body.append(download);
   download.click();
+  download.remove();
   setTimeout(() => URL.revokeObjectURL(download.href), 1000);
 });
