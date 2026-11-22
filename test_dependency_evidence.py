@@ -129,7 +129,7 @@ class DependencyEvidenceTests(unittest.TestCase):
         report = assess(PATCH, incidents=incidents)
         self.assertEqual([i["id"] for i in report["incidents"]], ["INC-301"])
 
-    def test_coverage_case_insensitive_and_whitespace_tolerance(self):
+    def test_coverage_whitespace_tolerance(self):
         patch = (
             "--- a/src/util.py\n"
             "+++ b/src/util.py\n"
@@ -138,7 +138,7 @@ class DependencyEvidenceTests(unittest.TestCase):
             "+    return a + b\n"
         )
         lcov = (
-            "SF:  SRC/UTIL.PY  \n"
+            "SF:  src/util.py  \n"
             "DA: 1 , 5 \n"
             "DA: 2 , 0 \n"
             "end_of_record\n"
@@ -146,6 +146,26 @@ class DependencyEvidenceTests(unittest.TestCase):
         report = assess(patch, coverage=lcov)
         self.assertEqual(report["coverage"]["covered"], 1)
         self.assertEqual(report["coverage"]["missed"], 1)
+
+    def test_coverage_for_different_path_casing_leaves_coverage_unknown(self):
+        patch = "--- a/src/Foo.py\n+++ b/src/Foo.py\n@@ -0,0 +1 @@\n+print(1)\n"
+        lcov = "SF:src/foo.py\nDA:1,1\nend_of_record\n"
+        report = assess(patch, coverage=lcov)
+        self.assertEqual(report["coverage"]["covered"], 0)
+        self.assertEqual(report["coverage"]["unknown"], 1)
+        self.assertEqual(report["decision"], "CANARY")
+
+    def test_rename_and_copy_keep_repository_relative_prefixes(self):
+        for operation, destination in (("rename", "a/new.py"), ("copy", "b/new file.py")):
+            with self.subTest(operation=operation):
+                patch = (
+                    f'diff --git "a/old.py" "b/{destination}"\n'
+                    "similarity index 100%\n"
+                    f"{operation} from old.py\n"
+                    f'{operation} to "{destination}"\n'
+                )
+                report = assess(patch)
+                self.assertEqual([file["path"] for file in report["files"]], [destination])
 
 
 if __name__ == "__main__":
