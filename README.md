@@ -121,3 +121,15 @@ python -m unittest -v
 The test suite covers all four scenario verdicts, transitive dependency tracing, malformed evidence, and export redaction.
 
 The browser UI lives in `web/`. `server.py` serves the UI and API, `engine.py` calculates the recommendation, `security_evidence.py` processes network and npm audit inputs, and `dependency_evidence.py` traces lockfile changes and candidate privacy routes.
+
+## Release baseline and diff
+
+ReleaseGuard can create a metadata-only baseline for a built release and compare it with a later release. The manifest records relative paths, file sizes, permissions, symlink targets, and SHA-256 digests; it never stores file contents.
+
+```sh
+python release_diff.py manifest ./dist --out release-v1.manifest.json
+python release_diff.py manifest ./dist --out release-v2.manifest.json
+python release_diff.py diff release-v1.manifest.json release-v2.manifest.json
+```
+
+The diff reports added, removed, changed, and unchanged entries as deterministic JSON. This is useful as a CI evidence artifact for identifying release drift between two builds.
