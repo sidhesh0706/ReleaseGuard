@@ -1,4 +1,8 @@
-"""Review locally supplied defensive evidence without fetching or executing it."""
+"""Review locally supplied defensive evidence without fetching or executing it.
+
+Processes sanitized network flow classification records and imported npm audit
+reports to surface security and privacy signals.
+"""
 import csv
 import io
 import json
@@ -16,6 +20,8 @@ EVIDENCE_LIMIT = 5_000
 
 
 def review_flows(raw):
+    """Review sanitized network flow CSV metadata for unencrypted personal/credential exposure."""
+    raw = raw.removeprefix("\ufeff")
     if not raw.strip():
         return None, []
 
@@ -59,6 +65,8 @@ def review_flows(raw):
 
 
 def review_npm_audit(raw):
+    """Review imported npm audit report (version 2) for direct and transitive vulnerabilities."""
+    raw = raw.removeprefix("\ufeff")
     if not raw.strip():
         return None, []
 

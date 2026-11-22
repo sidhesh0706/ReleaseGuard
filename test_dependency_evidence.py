@@ -93,6 +93,80 @@ class DependencyEvidenceTests(unittest.TestCase):
         self.assertEqual(report["coverage"]["percent"], 100)
         self.assertFalse(report["blockers"])
 
+    def test_patch_with_empty_context_lines(self):
+        patch = (
+            "--- a/service.py\n"
+            "+++ b/service.py\n"
+            "@@ -1,2 +1,3 @@\n"
+            " def process():\n"
+            "\n"
+            "+    return True\n"
+        )
+        report = assess(patch)
+        self.assertIn("service.py", [f["path"] for f in report["files"]])
+
+    def test_patch_with_utf8_bom(self):
+        patch = "\ufeff" + PATCH
+        report = assess(patch, baseline_lock=lock("1.0.0"), release_lock=lock("1.0.1"))
+        self.assertEqual(report["decision"], "CANARY")
+
+    def test_patch_with_quoted_rename_path(self):
+        patch = (
+            'diff --git "a/old file.js" "b/new file.js"\n'
+            "similarity index 100%\n"
+            'rename from "old file.js"\n'
+            'rename to "new file.js"\n'
+        )
+        report = assess(patch)
+        self.assertIn("new file.js", [f["path"] for f in report["files"]])
+
+    def test_case_insensitive_incident_module_matching(self):
+        incidents = "id,module,severity\nINC-301,SERVICES/CHECKOUT,medium\n"
+        report = assess(PATCH, incidents=incidents)
+        self.assertEqual([i["id"] for i in report["incidents"]], [])
+        # When module matches patch path:
+        incidents = "id,module,severity\nINC-301,SRC/CHECKOUT.JS,high\n"
+        report = assess(PATCH, incidents=incidents)
+        self.assertEqual([i["id"] for i in report["incidents"]], ["INC-301"])
+
+    def test_coverage_whitespace_tolerance(self):
+        patch = (
+            "--- a/src/util.py\n"
+            "+++ b/src/util.py\n"
+            "@@ -0,0 +1,2 @@\n"
+            "+def add(a, b):\n"
+            "+    return a + b\n"
+        )
+        lcov = (
+            "SF:  src/util.py  \n"
+            "DA: 1 , 5 \n"
+            "DA: 2 , 0 \n"
+            "end_of_record\n"
+        )
+        report = assess(patch, coverage=lcov)
+        self.assertEqual(report["coverage"]["covered"], 1)
+        self.assertEqual(report["coverage"]["missed"], 1)
+
+    def test_coverage_for_different_path_casing_leaves_coverage_unknown(self):
+        patch = "--- a/src/Foo.py\n+++ b/src/Foo.py\n@@ -0,0 +1 @@\n+print(1)\n"
+        lcov = "SF:src/foo.py\nDA:1,1\nend_of_record\n"
+        report = assess(patch, coverage=lcov)
+        self.assertEqual(report["coverage"]["covered"], 0)
+        self.assertEqual(report["coverage"]["unknown"], 1)
+        self.assertEqual(report["decision"], "CANARY")
+
+    def test_rename_and_copy_keep_repository_relative_prefixes(self):
+        for operation, destination in (("rename", "a/new.py"), ("copy", "b/new file.py")):
+            with self.subTest(operation=operation):
+                patch = (
+                    f'diff --git "a/old.py" "b/{destination}"\n'
+                    "similarity index 100%\n"
+                    f"{operation} from old.py\n"
+                    f'{operation} to "{destination}"\n'
+                )
+                report = assess(patch)
+                self.assertEqual([file["path"] for file in report["files"]], [destination])
+
 
 if __name__ == "__main__":
     unittest.main()
