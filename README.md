@@ -227,5 +227,5 @@ The test suite covers:
 - Lockfile redaction ensuring registry URLs and hashes are never leaked.
 - Tolerating empty context lines and quoted paths in unified diffs.
 - Automatic UTF-8 BOM handling across inputs.
-- Whitespace and case tolerance in coverage and incident indexes.
+- Whitespace tolerance in coverage and case-insensitive incident module matching. Coverage paths must match repository-relative paths, including case.
 - Input validation and malformed artifact rejection.
