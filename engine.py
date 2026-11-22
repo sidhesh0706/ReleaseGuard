@@ -1,4 +1,10 @@
-"""Deterministic release assessment. Inputs are data, never executed."""
+"""Deterministic release assessment engine.
+
+Inputs are processed strictly as data and are never executed.
+Combines code diff analysis, test coverage mapping, incident history,
+security checks, and dependency privacy route analysis into an actionable
+release advisory (GO, CANARY, or HOLD).
+"""
 import csv
 import io
 import json
@@ -26,17 +32,21 @@ def normalized(value):
     return value.replace("\\", "/").removeprefix("./")
 
 
-def path_from_header(value):
+def path_from_header(value, *, strip_git_prefix=True):
     value = value.split("\t", 1)[0]
     if value.startswith('"'):
         try:
             value = shlex.split(value)[0]
         except (ValueError, IndexError):
             raise ValueError("A patch path could not be parsed.") from None
-    return normalized(value.removeprefix("b/") if value.startswith("b/") else value.removeprefix("a/"))
+    if strip_git_prefix and value.startswith(("a/", "b/")):
+        value = value[2:]
+    return normalized(value)
 
 
 def parse_patch(patch):
+    """Parse unified diff or Git patch and extract added/removed line metadata."""
+    patch = patch.removeprefix("\ufeff")
     files = {}
     path = git_path = None
     previous = None
@@ -68,7 +78,8 @@ def parse_patch(patch):
             elif line.startswith("-"):
                 files[path]["removed"] += 1
                 old_remaining -= 1
-            elif line.startswith(" "):
+            elif line.startswith(" ") or line == "":
+                # Context line: whitespace-stripped empty lines are treated as blank context lines
                 line_number += 1
                 old_remaining -= 1
                 new_remaining -= 1
@@ -92,7 +103,7 @@ def parse_patch(patch):
                 files.setdefault(path, {"added": [], "removed": 0})
             git_path = previous = None
         elif line.startswith(("rename to ", "copy to ")):
-            git_path = normalized(line.split(" to ", 1)[1])
+            git_path = path_from_header(line.split(" to ", 1)[1], strip_git_prefix=False)
     if old_remaining or new_remaining:
         raise ValueError("A patch hunk ended before all declared lines were read.")
     finish_file()
@@ -104,6 +115,8 @@ def parse_patch(patch):
 
 
 def coverage_index(raw):
+    """Index per-line execution evidence from LCOV or coverage.py JSON."""
+    raw = raw.removeprefix("\ufeff")
     if not raw.strip():
         return {}
     try:
@@ -114,19 +127,27 @@ def coverage_index(raw):
                 raise ValueError
             result = {}
             for path, row in files.items():
-                covered, missed = row["executed_lines"], row["missing_lines"]
+                if not isinstance(row, dict):
+                    raise ValueError
+                covered, missed = row.get("executed_lines"), row.get("missing_lines")
                 if not all(isinstance(group, list) and all(type(n) is int and n > 0 for n in group) for group in (covered, missed)):
                     raise ValueError
-                result[normalized(path)] = (set(covered), set(missed))
+                result[normalized(path.strip())] = (set(covered), set(missed))
             return result
         results = {}
         path, covered, missed = None, set(), set()
         for line in raw.splitlines():
+            line = line.strip()
+            if not line:
+                continue
             if line.startswith("SF:"):
-                path = normalized(line[3:])
+                path = normalized(line[3:].strip())
                 covered, missed = set(), set()
             elif line.startswith("DA:") and path:
-                number, count, *_ = line[3:].split(",")
+                parts = line[3:].split(",")
+                if len(parts) < 2:
+                    raise ValueError
+                number, count = parts[0].strip(), parts[1].strip()
                 (covered if int(count) > 0 else missed).add(int(number))
             elif line == "end_of_record" and path:
                 old_covered, old_missed = results.get(path, (set(), set()))
@@ -140,9 +161,11 @@ def coverage_index(raw):
 
 
 def incident_index(raw):
+    """Parse and validate historical incident CSV."""
+    raw = raw.removeprefix("\ufeff")
     if not raw.strip():
         return []
-    reader = csv.DictReader(io.StringIO(raw), strict=True)
+    reader = csv.DictReader(io.StringIO(raw, newline=""), strict=True)
     incidents = []
     try:
         if not reader.fieldnames or not {"id", "module", "severity"} <= set(reader.fieldnames):
@@ -193,9 +216,19 @@ RULES = [
 
 
 def assess(patch, coverage="", incidents="", network_flows="", npm_audit="", baseline_lock="", release_lock="", *, progress=None):
+    """Assess release risk across all supplied evidence and return an advisory report."""
     def emit(stage, state, detail=""):
         if progress is not None:
             progress({"type": "step", "stage": stage, "state": state, "detail": detail})
+
+    # Guard against UTF-8 byte-order marks in any supplied evidence string
+    patch = patch.removeprefix("\ufeff")
+    coverage = coverage.removeprefix("\ufeff")
+    incidents = incidents.removeprefix("\ufeff")
+    network_flows = network_flows.removeprefix("\ufeff")
+    npm_audit = npm_audit.removeprefix("\ufeff")
+    baseline_lock = baseline_lock.removeprefix("\ufeff")
+    release_lock = release_lock.removeprefix("\ufeff")
 
     emit("prepare", "running")
     files = parse_patch(patch)
@@ -255,9 +288,11 @@ def assess(patch, coverage="", incidents="", network_flows="", npm_audit="", bas
         unknown_total += unknown
         changed.append({"path": label, "tags": tags, "added": len(added), "removed": delta["removed"], "covered": covered, "missed": missed, "unknown": unknown})
         parts = path.split("/")
+        parts_lower = [p.lower() for p in parts]
         for identifier, module, severity in inventory:
             module_parts = module.split("/")
-            if any(parts[i:i + len(module_parts)] == module_parts for i in range(len(parts) - len(module_parts) + 1)):
+            module_parts_lower = [p.lower() for p in module_parts]
+            if any(parts_lower[i:i + len(module_parts_lower)] == module_parts_lower for i in range(len(parts) - len(module_parts) + 1)):
                 key = (identifier, module)
                 if key not in matched:
                     matched[key] = {"id": identifier, "module": safe_label(module), "severity": severity}

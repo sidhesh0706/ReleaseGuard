@@ -1,8 +1,7 @@
 """Deterministic release manifests and safe release-to-release diffs.
 
 The module intentionally uses only the standard library. A manifest contains
-metadata and SHA-256 digests, but never file contents, so it is safe to retain
-as release evidence.
+metadata and SHA-256 digests for files in a stable build directory.
 """
 from __future__ import annotations
 
@@ -10,6 +9,7 @@ import argparse
 import hashlib
 import json
 import os
+import stat
 from pathlib import Path
 from typing import Any
 
@@ -29,33 +29,41 @@ def _relative(root: Path, path: Path) -> str:
     return path.relative_to(root).as_posix()
 
 
+def _is_reparse_point(metadata: os.stat_result) -> bool:
+    return bool(getattr(metadata, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+
+
 def build_manifest(root: str | os.PathLike[str]) -> dict[str, Any]:
-    """Build a stable manifest for a directory without following symlinks."""
-    base = Path(root).expanduser().resolve()
-    if not base.is_dir():
-        raise ValueError(f"Release directory does not exist: {root}")
+    """Build a manifest for a stable build directory without traversing links."""
+    base = Path(root).expanduser().absolute()
+    try:
+        metadata = base.lstat()
+    except FileNotFoundError as error:
+        raise ValueError(f"Release directory does not exist: {root}") from error
+    if not stat.S_ISDIR(metadata.st_mode) or _is_reparse_point(metadata):
+        raise ValueError(f"Release root must be a directory, with links and reparse points excluded: {root}")
 
     files: list[dict[str, Any]] = []
-    for path in sorted(base.rglob("*"), key=lambda item: _relative(base, item)):
-        if path.is_symlink():
-            target = os.readlink(path)
-            files.append({
-                "path": _relative(base, path),
-                "kind": "symlink",
-                "target": target,
-            })
-            continue
-        if not path.is_file():
-            continue
-        stat = path.stat()
-        files.append({
-            "path": _relative(base, path),
-            "kind": "file",
-            "size": stat.st_size,
-            "mode": stat.st_mode & 0o777,
-            "sha256": _digest(path),
-        })
+    pending = [base]
+    while pending:
+        for path in pending.pop().iterdir():
+            metadata = path.lstat()
+            if stat.S_ISLNK(metadata.st_mode):
+                files.append({"path": _relative(base, path), "kind": "symlink", "target": os.readlink(path)})
+            elif _is_reparse_point(metadata):
+                continue
+            elif stat.S_ISDIR(metadata.st_mode):
+                pending.append(path)
+            elif stat.S_ISREG(metadata.st_mode):
+                files.append({
+                    "path": _relative(base, path),
+                    "kind": "file",
+                    "size": metadata.st_size,
+                    "mode": metadata.st_mode & 0o777,
+                    "sha256": _digest(path),
+                })
 
+    files.sort(key=lambda entry: entry["path"])
     return {"schema": SCHEMA_VERSION, "files": files}
 
 
@@ -123,7 +131,12 @@ def main() -> int:
     diff.add_argument("--out", type=Path)
     args = parser.parse_args()
     try:
-        result = build_manifest(args.directory) if args.command == "manifest" else compare_manifests(_load(args.before), _load(args.after))
+        if args.command == "manifest":
+            result = build_manifest(args.directory)
+            if args.out.resolve().is_relative_to(args.directory.resolve()):
+                raise ValueError("Write the manifest outside the release directory.")
+        else:
+            result = compare_manifests(_load(args.before), _load(args.after))
         output = json.dumps(result, indent=2) + "\n"
         if args.command == "manifest" or args.out:
             target = args.out
@@ -131,7 +144,7 @@ def main() -> int:
             target.write_text(output, encoding="utf-8")
         else:
             print(output, end="")
-    except ValueError as error:
+    except (OSError, ValueError) as error:
         parser.error(str(error))
     return 0
 

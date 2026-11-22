@@ -1,4 +1,6 @@
-import json
+import stat
+from types import SimpleNamespace
+from unittest.mock import patch
 import tempfile
 import unittest
 from pathlib import Path
@@ -19,8 +21,9 @@ class ReleaseDiffTests(unittest.TestCase):
 
     def test_manifest_does_not_follow_symlinks(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            outside = root.parent / "releaseguard-outside-fixture.txt"
+            root = Path(directory) / "release"
+            root.mkdir()
+            outside = root.parent / "outside.txt"
             outside.write_text("not part of release", encoding="utf-8")
             try:
                 (root / "link").symlink_to(outside)
@@ -29,6 +32,27 @@ class ReleaseDiffTests(unittest.TestCase):
             manifest = build_manifest(root)
             self.assertEqual(manifest["files"][0]["kind"], "symlink")
             self.assertNotIn("sha256", manifest["files"][0])
+
+    def test_manifest_skips_directory_reparse_points(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            linked = root / "linked"
+            linked.mkdir()
+            (linked / "outside.txt").write_text("outside", encoding="utf-8")
+            original_lstat = Path.lstat
+
+            def lstat(path):
+                if path == linked:
+                    return SimpleNamespace(
+                        st_mode=stat.S_IFDIR,
+                        st_file_attributes=stat.FILE_ATTRIBUTE_REPARSE_POINT,
+                    )
+                return original_lstat(path)
+
+            with patch.object(Path, "lstat", lstat):
+                self.assertEqual(build_manifest(root)["files"], [])
+                with self.assertRaisesRegex(ValueError, "reparse points excluded"):
+                    build_manifest(linked)
 
     def test_compare_reports_added_removed_changed_and_unchanged(self):
         before = {"schema": 1, "files": [
