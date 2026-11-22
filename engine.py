@@ -32,14 +32,16 @@ def normalized(value):
     return value.replace("\\", "/").removeprefix("./")
 
 
-def path_from_header(value):
+def path_from_header(value, *, strip_git_prefix=True):
     value = value.split("\t", 1)[0]
     if value.startswith('"'):
         try:
             value = shlex.split(value)[0]
         except (ValueError, IndexError):
             raise ValueError("A patch path could not be parsed.") from None
-    return normalized(value.removeprefix("b/") if value.startswith("b/") else value.removeprefix("a/"))
+    if strip_git_prefix and value.startswith(("a/", "b/")):
+        value = value[2:]
+    return normalized(value)
 
 
 def parse_patch(patch):
@@ -101,7 +103,7 @@ def parse_patch(patch):
                 files.setdefault(path, {"added": [], "removed": 0})
             git_path = previous = None
         elif line.startswith(("rename to ", "copy to ")):
-            git_path = path_from_header(line.split(" to ", 1)[1])
+            git_path = path_from_header(line.split(" to ", 1)[1], strip_git_prefix=False)
     if old_remaining or new_remaining:
         raise ValueError("A patch hunk ended before all declared lines were read.")
     finish_file()
@@ -231,7 +233,6 @@ def assess(patch, coverage="", incidents="", network_flows="", npm_audit="", bas
     emit("prepare", "running")
     files = parse_patch(patch)
     index = coverage_index(coverage)
-    index_lower = {k.lower(): v for k, v in index.items()}
     inventory = incident_index(incidents)
     emit("prepare", "done", f"Changed files: {len(files)}")
 
@@ -272,7 +273,7 @@ def assess(patch, coverage="", incidents="", network_flows="", npm_audit="", bas
             findings.append({"area": "Change impact", "severity": "critical", "title": "Destructive schema change", "file": label, "line": None, "action": "Verify a backup restore and plan a compatible forward migration."})
         covered = missed = unknown = 0
         if PurePosixPath(path.lower()).suffix in SOURCE and "Test" not in tags:
-            known_hit, known_miss = index.get(path) or index_lower.get(path.lower(), (set(), set()))
+            known_hit, known_miss = index.get(path, (set(), set()))
             for number, code in added:
                 if not code.strip() or code.lstrip().startswith(("#", "//", "/*", "*")):
                     continue
