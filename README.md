@@ -20,6 +20,22 @@ Built by **Team LLmborghini** for **Agent Forge**.
 
 ---
 
+## Screenshots
+
+The release advisory recommends **HOLD** at **88/100** and identifies the restore-plan requirement:
+
+![Release advisory showing seven inputs, an 88/100 risk score, and the restore-plan requirement](docs/screenshots/release-advisory.webp)
+
+Security evidence flags two network flows and traces the high-severity audit finding to a transitive dependency:
+
+![Security evidence showing two flagged flows and a 3D dependency path from @demo/telemetry to demo-replay](docs/screenshots/security-evidence.webp)
+
+The privacy view links a potential exposure to `src/checkout.js:3` for runtime verification:
+
+![Candidate privacy route showing the source location, telemetry call, and dependency path](docs/screenshots/privacy-route.webp)
+
+---
+
 ## Quick start
 
 Requires **Python 3.10** or newer.
@@ -91,20 +107,6 @@ The bundled scenarios cover all three recommendations.
 5. In **Findings**, filter by severity (Critical, High, Medium, Low) to review actionable remediation steps.
 6. Open **Rollback** for the checklist, including choosing an owner, setting abort thresholds, and verifying recovery. Click **Export** to save the assessment as JSON.
 7. Use **Try another scenario** to compare recommendations across scenarios.
-
-### Screenshots
-
-The release advisory recommends **HOLD** at **88/100** and identifies the restore-plan requirement:
-
-![Release advisory showing seven inputs, an 88/100 risk score, and the restore-plan requirement](docs/screenshots/release-advisory.webp)
-
-Security evidence flags two network flows and traces the high-severity audit finding to a transitive dependency:
-
-![Security evidence showing two flagged flows and a 3D dependency path from @demo/telemetry to demo-replay](docs/screenshots/security-evidence.webp)
-
-The privacy view links a potential exposure to `src/checkout.js:3` for runtime verification:
-
-![Candidate privacy route showing the source location, telemetry call, and dependency path](docs/screenshots/privacy-route.webp)
 
 ---
 
